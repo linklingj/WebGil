@@ -1,3 +1,26 @@
+
+# Docs
+CLAUDE.md
+
+# macOS
+.DS_Store
+
+# Node / TypeScript (packages/*, apps/*, tools/*)
+node_modules/
+*.tsbuildinfo
+.turbo/
+
+# Extension build output
+apps/extension/dist/
+apps/extension/.output/
+*.crx
+*.pem
+
+# Electron build output
+apps/desktop/dist/
+apps/desktop/out/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # ponytail: 아직 코드가 없다. package.json이 생기는 Phase 1부터 실제 install/build/test 실행.
+      - name: Build & test
+        run: |
+          if [ -f package.json ]; then
+            corepack enable
+            pnpm install --frozen-lockfile
+            pnpm -r build
+            pnpm -r test
+          else
+            echo "package.json 없음 — 빌드 생략 (Phase 1에서 활성화)"
+          fi
