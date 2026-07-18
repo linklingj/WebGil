@@ -24,6 +24,10 @@ fix/tree-highlight-offset
 - 소문자 + 하이픈(kebab-case), 한글 금지.
 - 이슈가 있으면 번호를 앞에: `feature/12-capture-source`.
 
+## 커밋 규칙
+
+- collaborator 혹은 co-author에 claude 추가하지 않기
+
 ## 커밋 메시지 규칙 (Conventional Commits)
 
 ```
@@ -70,5 +74,4 @@ Closes #
 ## 체크리스트
 - [ ] 로컬에서 동작 확인
 - [ ] 관련 문서 갱신 (필요 시)
-- [ ] collaborator에 claude 추가하지 않기
 ```
