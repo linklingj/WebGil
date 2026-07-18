@@ -54,7 +54,6 @@ docs: git 협업 규칙 문서 작성
 ## Pull Request 규칙
 
 - 대상 브랜치는 `develop`.
-- 리뷰어 1명 이상 승인 후 머지.
 - 머지 방식은 **Squash and merge** 권장(커밋 히스토리 정리).
 - 템플릿(`.github/PULL_REQUEST_TEMPLATE.md`)에 맞춰 작성:
 
@@ -71,4 +70,5 @@ Closes #
 ## 체크리스트
 - [ ] 로컬에서 동작 확인
 - [ ] 관련 문서 갱신 (필요 시)
+- [ ] collaborator에 claude 추가하지 않기
 ```
