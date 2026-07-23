@@ -5,12 +5,14 @@
   "description": "ExtensionSource — CaptureSource의 1차(MVP) 구현 (Chrome MV3)",
   "type": "module",
   "scripts": {
+    "build": "esbuild src/content.ts --bundle --format=iife --target=chrome110 --outfile=dist/content.js && cp manifest.json dist/",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@webgil/core": "workspace:*"
   },
   "devDependencies": {
+    "esbuild": "^0.24.0",
     "typescript": "^5.7.2"
   }
 }

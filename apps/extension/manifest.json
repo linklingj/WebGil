@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "WebGil (웹길)",
+  "version": "0.1.0",
+  "description": "구조 기반 스크린리더 — CaptureSource(ExtensionSource) MVP",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
