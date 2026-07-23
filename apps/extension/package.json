@@ -1,0 +1,16 @@
+{
+  "name": "@webgil/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ExtensionSource — CaptureSource의 1차(MVP) 구현 (Chrome MV3)",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@webgil/core": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
