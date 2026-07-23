@@ -1,0 +1,23 @@
+{
+  "name": "@webgil/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ExtensionSource — CaptureSource의 1차(MVP) 구현 (Chrome MV3)",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/content.ts --bundle --format=iife --target=chrome110 --outfile=dist/content.js && cp manifest.json dist/",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test src/capture/extension-source.test.ts"
+  },
+  "dependencies": {
+    "@webgil/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.10.0",
+    "esbuild": "^0.24.0",
+    "jsdom": "^25.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
