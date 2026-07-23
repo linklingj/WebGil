@@ -1,0 +1,18 @@
+{
+  "name": "@webgil/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "셸 독립 코어 — CaptureSource 인터페이스와 공용 타입",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
