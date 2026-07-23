@@ -97,7 +97,10 @@ export class ExtensionSource implements CaptureSource {
   }
 
   private resolve(nodeId: NodeId): HTMLElement | null {
-    return this.doc.querySelector<HTMLElement>(`[${ID_ATTR}="${CSS.escape(nodeId)}"]`);
+    // id는 우리가 만든 `w<숫자>` 형태라 이스케이프가 필수는 아니지만, 브라우저에선 방어적으로 CSS.escape.
+    // (jsdom엔 window.CSS가 없어 폴백)
+    const safe = this.win.CSS?.escape(nodeId) ?? nodeId;
+    return this.doc.querySelector<HTMLElement>(`[${ID_ATTR}="${safe}"]`);
   }
 
   private ensureOverlay(): HTMLElement {
@@ -197,16 +200,15 @@ export function accessibleName(el: Element): string {
     if (text) return text;
   }
 
-  if (el instanceof HTMLImageElement) return el.alt.trim();
+  // instanceof(전역 DOM 클래스) 대신 tagName으로 판별 — 브라우저·jsdom 어느 realm에서도 동작한다.
+  const tag = el.tagName.toLowerCase();
+  if (tag === "img") return (el.getAttribute("alt") ?? "").trim();
 
-  if (
-    el instanceof HTMLInputElement ||
-    el instanceof HTMLTextAreaElement ||
-    el instanceof HTMLSelectElement
-  ) {
-    const fromLabel = el.labels?.[0]?.textContent?.trim();
+  if (tag === "input" || tag === "textarea" || tag === "select") {
+    const fromLabel = (el as HTMLInputElement).labels?.[0]?.textContent?.trim();
     if (fromLabel) return fromLabel;
-    if ("placeholder" in el && el.placeholder) return el.placeholder.trim();
+    const placeholder = el.getAttribute("placeholder");
+    if (placeholder) return placeholder.trim();
   }
 
   return collapse(el.textContent ?? "");
