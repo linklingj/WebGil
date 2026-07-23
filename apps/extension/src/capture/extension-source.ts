@@ -2,20 +2,20 @@
 // 사용자 브라우저 세션 그대로 사용하고, 원본 Element 핸들을 보존해 execute/highlight가 같은 노드를 지목한다.
 // (plan.md §4.1, docs/01_SYSTEM/01·07)
 import type { CaptureSource, AXNode, Action, NodeId } from "@webgil/core";
-
-/** getAXTree가 수집하는 대상 셀렉터 — heading·상호작용 요소·landmark. */
-const AX_SELECTOR =
-  "h1,h2,h3,h4,h5,h6,a[href],button,input,textarea,select,[role],nav,main,header,footer,aside,img[alt]";
-
-/** 노드 id를 Element에 심어 두는 데이터 속성(재추출·액션 사이에서 노드를 재식별). */
-const ID_ATTR = "data-webgil-id";
+import {
+  SIGNIFICANT_SELECTOR,
+  ID_ATTR,
+  ensureNodeId,
+  roleOf,
+  accessibleName,
+  headingLevel,
+} from "@webgil/core";
 
 export class ExtensionSource implements CaptureSource {
   private readonly doc: Document;
   // 전역 생성자(Event/MutationObserver/HTMLInputElement…)를 올바른 realm에서 얻기 위해
   // Window가 아니라 Window & typeof globalThis로 잡는다.
   private readonly win: Window & typeof globalThis;
-  private seq = 0;
   private overlay?: HTMLElement;
   private observer?: MutationObserver;
 
@@ -30,16 +30,12 @@ export class ExtensionSource implements CaptureSource {
   }
 
   // 라이브 DOM을 훑어 접근성 노드 목록을 만든다. 계층 구성은 구조 추출 엔진(02)의 몫이라 평평한 목록을 낸다.
-  // ponytail: 규칙 기반 role/name 휴리스틱. 전체 WAI-ARIA 이름 계산은 dom-accessibility-api로 Phase 3에.
+  // ponytail: 규칙 기반 role/name 휴리스틱(코어 dom-semantics 공유). 전체 WAI-ARIA 이름 계산은 Phase 3.
   getAXTree(): AXNode[] {
-    this.seq = 0;
     const out: AXNode[] = [];
-    for (const el of this.doc.querySelectorAll<HTMLElement>(AX_SELECTOR)) {
-      const role = roleOf(el);
-      const name = accessibleName(el);
-      const id = `w${this.seq++}`;
-      el.setAttribute(ID_ATTR, id); // 액션/하이라이트가 이 id로 원본 노드를 되찾는다.
-      const node: AXNode = { id, role, name };
+    for (const el of this.doc.querySelectorAll<HTMLElement>(SIGNIFICANT_SELECTOR)) {
+      const id = ensureNodeId(el); // 액션/하이라이트가 이 id로 원본 노드를 되찾는다.
+      const node: AXNode = { id, role: roleOf(el), name: accessibleName(el) };
       const level = headingLevel(el);
       if (level) node.level = level;
       out.push(node);
@@ -123,101 +119,9 @@ export class ExtensionSource implements CaptureSource {
   }
 }
 
-// --- 순수 헬퍼 (테스트 대상) ---
-
-/** heading 요소면 의미 레벨(1~6), 아니면 undefined. aria-level이 있으면 우선. */
-export function headingLevel(el: Element): number | undefined {
-  const aria = el.getAttribute("aria-level");
-  if (aria && el.getAttribute("role") === "heading") return Number(aria);
-  const m = /^h([1-6])$/.exec(el.tagName.toLowerCase());
-  return m ? Number(m[1]) : undefined;
-}
-
-/** 요소의 접근성 role을 규칙 기반으로 추정. 명시적 role 속성이 최우선. */
-export function roleOf(el: Element): string {
-  const explicit = el.getAttribute("role");
-  if (explicit) return explicit;
-  const tag = el.tagName.toLowerCase();
-  if (/^h[1-6]$/.test(tag)) return "heading";
-  switch (tag) {
-    case "a":
-      return "link";
-    case "button":
-      return "button";
-    case "textarea":
-      return "textbox";
-    case "select":
-      return "combobox";
-    case "nav":
-      return "navigation";
-    case "main":
-      return "main";
-    case "header":
-      return "banner";
-    case "footer":
-      return "contentinfo";
-    case "aside":
-      return "complementary";
-    case "img":
-      return "image";
-    case "input":
-      return inputRole(el as HTMLInputElement);
-    default:
-      return tag;
-  }
-}
-
-function inputRole(el: HTMLInputElement): string {
-  switch (el.type) {
-    case "button":
-    case "submit":
-    case "reset":
-      return "button";
-    case "checkbox":
-      return "checkbox";
-    case "radio":
-      return "radio";
-    default:
-      return "textbox";
-  }
-}
-
-/**
- * 접근 가능한 이름(accessible name)을 규칙 기반으로 계산.
- * 우선순위: aria-label → aria-labelledby → alt(img) → 연결된 label → placeholder → 본문 텍스트.
- */
-export function accessibleName(el: Element): string {
-  const label = el.getAttribute("aria-label");
-  if (label) return label.trim();
-
-  const labelledby = el.getAttribute("aria-labelledby");
-  if (labelledby) {
-    const text = labelledby
-      .split(/\s+/)
-      .map((id) => el.ownerDocument.getElementById(id)?.textContent ?? "")
-      .join(" ")
-      .trim();
-    if (text) return text;
-  }
-
-  // instanceof(전역 DOM 클래스) 대신 tagName으로 판별 — 브라우저·jsdom 어느 realm에서도 동작한다.
-  const tag = el.tagName.toLowerCase();
-  if (tag === "img") return (el.getAttribute("alt") ?? "").trim();
-
-  if (tag === "input" || tag === "textarea" || tag === "select") {
-    const fromLabel = (el as HTMLInputElement).labels?.[0]?.textContent?.trim();
-    if (fromLabel) return fromLabel;
-    const placeholder = el.getAttribute("placeholder");
-    if (placeholder) return placeholder.trim();
-  }
-
-  return collapse(el.textContent ?? "");
-}
-
-/** 연속 공백을 하나로 접고 앞뒤를 다듬는다. */
-function collapse(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
+// role/accessible name/headingLevel은 코어(dom-semantics)로 이동해 구조 추출 엔진과 공유한다.
+// 기존 임포트 경로 호환을 위해 재노출.
+export { roleOf, accessibleName } from "@webgil/core";
 
 /**
  * 네이티브 value setter로 값을 넣고 input/change 이벤트를 디스패치.

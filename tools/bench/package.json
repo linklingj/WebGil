@@ -1,0 +1,21 @@
+{
+  "name": "@webgil/bench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PlaywrightSource/관찰 하니스 — 코퍼스에서 구조 추출 트리 품질을 검증",
+  "type": "module",
+  "scripts": {
+    "observe": "node --import tsx run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@webgil/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^22.10.0",
+    "jsdom": "^25.0.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

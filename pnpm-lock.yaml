@@ -35,6 +35,40 @@ importers:
 
   packages/core:
     devDependencies:
+      '@types/jsdom':
+        specifier: ^21.1.7
+        version: 21.1.7
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
+  tools/bench:
+    dependencies:
+      '@webgil/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+    devDependencies:
+      '@types/jsdom':
+        specifier: ^21.1.7
+        version: 21.1.7
+      '@types/node':
+        specifier: ^22.10.0
+        version: 22.20.1
+      jsdom:
+        specifier: ^25.0.1
+        version: 25.0.1
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
