@@ -2,7 +2,6 @@
 // 헤딩·landmark로 계층을 세우고, 상호작용 요소를 가장 가까운 섹션에 붙인 뒤,
 // 반복·빈 노드를 정리하고 큰 목록은 묶어 "적당한 개수"로 유지한다.
 // 원본 Element를 handle로 보존 → 액션 실행기(07)가 같은 노드를 지목한다. (plan.md §3.1, docs/01_SYSTEM/02·03)
-import type { NodeId, NodeHandle } from "./capture-source.js";
 import {
   SIGNIFICANT_SELECTOR,
   ensureNodeId,
@@ -12,18 +11,7 @@ import {
   collapse,
   isHidden,
 } from "./dom-semantics.js";
-
-export type NodeKind = "heading" | "text" | "link" | "button" | "input" | "group";
-
-/** 정규화된 문서 트리의 노드. (docs/01_SYSTEM/03) */
-export interface DocNode {
-  id: NodeId;
-  kind: NodeKind;
-  level: number; // 출력 트리 깊이(root 자식=1). 탐색 drill-down 축.
-  text: string;
-  handle?: NodeHandle; // 원본 Element. 규칙 경로는 항상 채움 → 조작 가능. group 버킷은 없음.
-  children: DocNode[];
-}
+import type { DocNode, NodeKind } from "./tree.js"; // 03 문서 트리 스키마
 
 // --- 규칙 상수 (실사이트 튜닝 노브) ---
 /** 한 부모 안에서 같은 kind의 leaf가 이 수 이상이면 하나의 그룹으로 묶는다. */
@@ -204,43 +192,4 @@ function bucketByKind(n: DocNode): void {
 function assignDepth(n: DocNode, depth: number): void {
   n.level = depth;
   for (const c of n.children) assignDepth(c, depth + 1);
-}
-
-// --- 관찰용 (콘솔·벤치) ---
-
-export interface TreeStats {
-  total: number; // root 제외 전체 노드 수
-  topLevel: number; // 최상위(레벨 1) 노드 수
-  maxDepth: number;
-  byKind: Record<string, number>;
-}
-
-export function treeStats(root: DocNode): TreeStats {
-  const byKind: Record<string, number> = {};
-  let total = 0;
-  let maxDepth = 0;
-  const walk = (n: DocNode) => {
-    for (const c of n.children) {
-      total++;
-      byKind[c.kind] = (byKind[c.kind] ?? 0) + 1;
-      if (c.level > maxDepth) maxDepth = c.level;
-      walk(c);
-    }
-  };
-  walk(root);
-  return { total, topLevel: root.children.length, maxDepth, byKind };
-}
-
-/** 트리를 읽기 쉬운 들여쓰기 텍스트로. maxDepth까지만 펼친다(콘솔 관찰용). */
-export function treeToText(root: DocNode, maxDepth = 3): string {
-  const lines: string[] = [];
-  const walk = (n: DocNode) => {
-    for (const c of n.children) {
-      const kids = c.children.length ? ` (${c.children.length})` : "";
-      lines.push(`${"  ".repeat(c.level - 1)}[${c.kind}] ${c.text}${kids}`);
-      if (c.level < maxDepth) walk(c);
-    }
-  };
-  walk(root);
-  return lines.join("\n");
 }
