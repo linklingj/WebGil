@@ -12,7 +12,7 @@ export type {
 export { extractTree } from "./structure.js";
 
 // 03 문서 트리 모델 — 코어 전 엔진이 공유하는 스키마 + 읽기 헬퍼.
-export { treeStats, treeToText } from "./tree.js";
+export { indexById, treeStats, treeToText } from "./tree.js";
 export type { DocNode, NodeKind, TreeStats } from "./tree.js";
 
 // DOM → 의미 규칙(셸과 공유).

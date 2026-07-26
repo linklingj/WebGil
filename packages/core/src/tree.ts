@@ -36,6 +36,26 @@ export interface DocNode {
   children: DocNode[];
 }
 
+// --- id 조회 (커서·하이라이트·액션의 지목 기준) ---
+
+/**
+ * id → 노드 조회 인덱스. 하이라이트·액션·네비 커서(04)가 NodeId로 노드를 되짚는 기준.
+ *
+ * 갱신(재추출) 연동: 트리는 읽기 전용 스냅샷이라 mutation 때마다 새로 추출한다.
+ * 그때 인덱스도 다시 만든다 — 같은 Element는 같은 id를 유지하므로(ensureNodeId),
+ * 커서가 들고 있던 id가 새 트리에서도 같은 노드로 되짚어진다. 노드가 사라졌으면
+ * `get`이 undefined → 커서 폴백은 네비게이션 엔진(04)이 처리한다. (docs/03)
+ */
+export function indexById(root: DocNode): Map<NodeId, DocNode> {
+  const index = new Map<NodeId, DocNode>();
+  const walk = (n: DocNode) => {
+    index.set(n.id, n);
+    for (const c of n.children) walk(c);
+  };
+  walk(root);
+  return index;
+}
+
 // --- 관찰용 읽기 헬퍼 (콘솔·벤치) ---
 
 export interface TreeStats {
