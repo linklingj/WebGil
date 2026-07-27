@@ -15,6 +15,10 @@ export { extractTree } from "./structure.js";
 export { indexById, treeStats, treeToText } from "./tree.js";
 export type { DocNode, NodeKind, TreeStats } from "./tree.js";
 
+// 04 기본 네비게이션 엔진.
+export { NavigationEngine } from "./navigation.js";
+export type { NavigationCommand, NavigationResult } from "./navigation.js";
+
 // DOM → 의미 규칙(셸과 공유).
 export {
   SIGNIFICANT_SELECTOR,
