@@ -8,17 +8,17 @@
 - 각 노드에 텍스트 / 상호작용 종류 / **원본 DOM 핸들**을 담는다.
 - 네비게이션 커서(현재 위치·레벨)와 하이라이트·액션이 노드를 지목하는 기준.
 
-## 노드 모델 (설계 초안)
+## 노드 모델 (확정 — `packages/core/src/tree.ts`)
 
 ```ts
 type NodeKind = "heading" | "text" | "link" | "button" | "input" | "group";
 
 interface DocNode {
-  id: string;            // 안정적 식별자 — 하이라이트·액션이 이 id로 노드 지목
+  id: NodeId;            // 안정적 식별자 — 하이라이트·액션이 이 id로 노드 지목
   kind: NodeKind;
-  level: number;         // 1~6, 의미 계층(시각 크기가 아님)
+  level: number;         // 트리 깊이(root=0, 자식=1…). 시각 크기 아닌 의미 계층 = drill-down 축
   text: string;
-  handle?: NodeHandle;   // 원본 DOM 참조. 폴백 트리(02)는 없을 수 있음
+  handle?: NodeHandle;   // 원본 DOM 참조. 폴백 트리(02)·group 버킷은 없을 수 있음
   children: DocNode[];
 }
 ```
@@ -37,11 +37,11 @@ interface DocNode {
 
 ## 범위 / Phase
 
-- Phase 1: 노드 스키마 확정(위 초안 기준).
-- Phase 2~: 커서·갱신 연동.
+- [x] Phase 1: 노드 스키마 확정 → `packages/core/src/tree.ts`.
+- [ ] Phase 2~: 커서·갱신 연동.
 
-## 미결정 / 리스크
+## 결정 / 미결정
 
-- `NodeHandle` 표현 통일: 확장은 직접 `Element`, Playwright/CDP는 `backendNodeId`.
-- 갱신 시 노드 `id` 안정성(SPA에서 동일 노드 재식별 규칙).
-- `group` 노드(같은 레벨 묶음)를 명시 노드로 둘지 children 구조로만 표현할지.
+- ✅ `NodeHandle`은 **불투명**(`capture-source.ts`). 셸이 실제 표현을 해소(확장=`Element`, CDP=`backendNodeId`). 코어는 내용을 모른다.
+- ✅ `group`은 **명시 노드**. landmark 영역과 동종 leaf 버킷을 같은 `group`으로 통일 → 탐색·낭독이 "묶음"을 1급으로 다룬다.
+- ⏳ 갱신 시 노드 `id` 안정성: 같은 `Element`는 재추출에도 같은 id 유지(`ensureNodeId`). 완전한 SPA 재식별 규칙은 Phase 3.

@@ -8,9 +8,12 @@ export type {
   RemoteHandle,
 } from "./capture-source.js";
 
-// 02 구조 추출 엔진 + 03 문서 트리 모델.
-export { extractTree, treeStats, treeToText } from "./structure.js";
-export type { DocNode, NodeKind, TreeStats } from "./structure.js";
+// 02 구조 추출 엔진.
+export { extractTree } from "./structure.js";
+
+// 03 문서 트리 모델 — 코어 전 엔진이 공유하는 스키마 + 읽기 헬퍼.
+export { indexById, treeStats, treeToText } from "./tree.js";
+export type { DocNode, NodeKind, TreeStats } from "./tree.js";
 
 // DOM → 의미 규칙(셸과 공유).
 export {

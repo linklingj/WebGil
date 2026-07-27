@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
-import { extractTree, treeStats, type DocNode } from "./structure.js";
+import { extractTree } from "./structure.js";
+import { treeStats, type DocNode } from "./tree.js";
 
 function tree(html: string): DocNode {
   const dom = new JSDOM(`<!doctype html><body>${html}</body>`);
