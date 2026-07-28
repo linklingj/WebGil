@@ -33,6 +33,14 @@ interface VoiceOpts { voice?: string; rate?: number; pitch?: number; }
 - 로컬 우선 모드는 민감 페이지 텍스트를 외부로 보내지 않는다(프라이버시).
 - 엔진 선택은 설정에서, 코어는 `TTSEngine` 인터페이스만 의존한다.
 
+## 1차 구현
+
+- 코어에 `TTSEngine`·`VoiceOptions`·`VoicePreset`을 정의하고, `NarrationController`가 새 낭독 전 항상 `stop()`을 호출해 이전 낭독을 선점한다.
+- `formatNarration()`은 노드 텍스트에 종류·문서 **계층 깊이**·같은 레벨 순서를 붙여 "소개, 제목, 계층 2, 2번 항목, 전체 3개"처럼 읽는다. 간단 낭독 모드에서는 텍스트만 읽는다.
+- 확장 MVP 구현체는 `WebSpeechEngine`이다. Chrome/OS의 Web Speech API를 사용하고, 한국어 음성 중 `localService` 음성을 우선 선택한다. 별도 모델 설치는 필요 없지만, 로컬 음성이 없을 때의 시스템 음성은 OS 제공자에 따라 원격일 수 있으므로 **외부 전송이 없음을 보장하지 않는다**. 강한 로컬·프라이버시 보장은 Piper/Kokoro 등 별도 로컬 엔진에서 제공한다.
+- Chrome이 첫 `getVoices()` 호출에서 빈 목록을 줄 수 있으므로, 첫 낭독에만 최대 250ms 동안 `voiceschanged`를 기다린다. 그 뒤에도 목록이 비어 있으면 브라우저 기본 음성으로 폴백한다.
+- Piper/Kokoro 같은 로컬 신경망 엔진과 API 엔진은 이후 동일한 `TTSEngine`으로 교체한다. 네비게이션(04) 브랜치가 병합된 뒤 이동 결과를 `NarrationController.announce()`에 연결한다.
+
 ## 의존
 
 - **상류**: 네비게이션(04), 문서 트리(03)의 텍스트.

@@ -12,6 +12,14 @@ export type {
 export { extractTree, treeStats, treeToText } from "./structure.js";
 export type { DocNode, NodeKind, TreeStats } from "./structure.js";
 
+// 05 TTS 엔진 + 노드 낭독 규칙.
+export type { TTSEngine, VoiceOptions, VoicePreset } from "./tts.js";
+export {
+  NarrationController,
+  formatNarration,
+} from "./narration.js";
+export type { NarrationContext, NarrationTarget } from "./narration.js";
+
 // DOM → 의미 규칙(셸과 공유).
 export {
   SIGNIFICANT_SELECTOR,
