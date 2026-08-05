@@ -11,8 +11,9 @@ import { NavigationEngine } from "./navigation.js";
 import type { DocNode } from "./tree.js";
 import { indexById } from "./tree.js";
 
+// handle은 구조 추출이 보존하는 원본 DOM 참조. 액션 실행기(07)가 유무로 조작 가능 여부를 가른다.
 function node(id: string, kind: DocNode["kind"], text: string, children: DocNode[] = []): DocNode {
-  return { id, kind, level: 1, text, children };
+  return { id, kind, level: 1, text, handle: {}, children };
 }
 
 const tree = node("root", "group", "문서", [
@@ -114,4 +115,31 @@ test("CommandDispatcher: 액션은 확인 전에는 실행하지 않고, 확인 
     command: { type: "action", action: { type: "click", nodeId: "button-login" } },
   });
   assert.deepEqual(executed, [{ type: "click", nodeId: "button-login" }]);
+});
+
+test("CommandDispatcher: 조작할 수 없는 노드는 확인을 거쳐도 실행하지 않는다", async () => {
+  const executed: unknown[] = [];
+  // 그룹 버킷처럼 handle이 없는 노드 — 원본 DOM이 없어 실행 불가.
+  const bucketTree: DocNode = {
+    id: "root", kind: "group", level: 0, text: "문서",
+    children: [{ id: "g0", kind: "group", level: 1, text: "링크 6개", children: [] }],
+  };
+  const dispatcher = new CommandDispatcher({
+    navigation: new NavigationEngine(bucketTree),
+    source: {
+      async execute(action) { executed.push(action); },
+      highlight() {},
+    },
+    narrator: { async announce() {}, stop() {} },
+  });
+  const plan = validateCommand(
+    { type: "action", action: { type: "click", nodeId: "g0" } },
+    indexById(bucketTree),
+  );
+
+  assert.deepEqual(await dispatcher.dispatch(plan, true), {
+    status: "rejected",
+    reason: "조작할 수 없는 항목입니다.",
+  });
+  assert.deepEqual(executed, []);
 });

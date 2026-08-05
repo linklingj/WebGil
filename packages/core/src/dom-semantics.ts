@@ -1,14 +1,31 @@
 // DOM → 의미(role·이름·헤딩레벨) 규칙. 셸 독립 순수 함수라 코어가 소유하고,
 // 구조 추출 엔진(02)과 ExtensionSource(01)가 함께 쓴다. (docs/01_SYSTEM/01·02)
 
-/** 구조 추출·AX 수집이 훑는 대상 — 헤딩·상호작용 요소·landmark·alt 이미지. */
-export const SIGNIFICANT_SELECTOR =
-  "h1,h2,h3,h4,h5,h6,[role=heading]," +
+const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6,[role=heading]";
+
+/** 사용자가 조작할 수 있는 요소. 자기 노드가 되므로 문단의 "문장 길이"에서는 제외한다. */
+const INTERACTIVE_SELECTOR =
   "a[href],button,[role=button],[role=link]," +
-  "input,textarea,select,[role=textbox],[role=combobox],[role=searchbox],[role=checkbox],[role=radio]," +
+  "input,textarea,select,[role=textbox],[role=combobox],[role=searchbox],[role=checkbox],[role=radio]";
+
+const LANDMARK_SELECTOR =
   "nav,main,header,footer,aside," +
-  "[role=navigation],[role=main],[role=banner],[role=contentinfo],[role=complementary],[role=region],[role=search],[role=form]," +
-  "img[alt]";
+  "[role=navigation],[role=main],[role=banner],[role=contentinfo],[role=complementary],[role=region],[role=search],[role=form]";
+
+/**
+ * 본문 텍스트 블록 — 낭독할 "읽을 내용"이 트리에 들어오는 유일한 경로.
+ * 이게 없으면 문서 트리가 링크·버튼 목록이 되어 헤딩으로 내려가도 읽을 게 없다.
+ */
+export const TEXT_BLOCK_SELECTOR = "p,li,dd,dt,blockquote,figcaption,td,pre";
+
+/** 구조 추출·AX 수집이 훑는 대상 — 헤딩·상호작용 요소·landmark·본문 블록·alt 이미지. */
+export const SIGNIFICANT_SELECTOR = [
+  HEADING_SELECTOR,
+  INTERACTIVE_SELECTOR,
+  LANDMARK_SELECTOR,
+  TEXT_BLOCK_SELECTOR,
+  "img[alt]",
+].join(",");
 
 /** 노드 id를 Element에 심어 두는 데이터 속성(재추출·액션 사이에서 노드를 재식별). */
 export const ID_ATTR = "data-webgil-id";
@@ -127,6 +144,43 @@ export function accessibleName(el: Element): string {
   }
 
   return collapse(el.textContent ?? "");
+}
+
+/** 본문 블록 하나에서 뽑은 텍스트. */
+export interface BlockText {
+  /** 낭독할 문단 전체. 문장 중간의 링크 텍스트는 흐름이 끊기지 않도록 포함한다. */
+  text: string;
+  /** 자기 노드가 되는 요소(링크·버튼 등)를 뺀 순수 문장 길이. 링크만 든 목록 껍데기 판별용. */
+  proseLength: number;
+}
+
+/**
+ * 본문 블록의 텍스트를 뽑는다. 중첩된 블록(li 안의 p 등)은 각자 노드가 되므로 제외한다.
+ *
+ * text와 proseLength를 나누는 이유: `<li><a>메뉴</a></li>`처럼 링크 껍데기인 블록은 버려야 하지만
+ * `<p>…<a>스크린 리더</a>…이다</p>`는 링크를 포함한 채로 읽어야 문장이 온전하다.
+ */
+export function blockText(el: Element): BlockText {
+  let text = "";
+  let prose = "";
+
+  const walk = (node: Element, insideInteractive: boolean): void => {
+    for (const child of node.childNodes) {
+      if (child.nodeType === 3 /* TEXT_NODE */) {
+        text += child.nodeValue ?? "";
+        if (!insideInteractive) prose += child.nodeValue ?? "";
+        continue;
+      }
+      if (child.nodeType !== 1 /* ELEMENT_NODE */) continue;
+      const element = child as Element;
+      // 중첩 블록·헤딩은 별도 노드로 들어간다 — 여기서 읽으면 같은 문장이 두 번 나온다.
+      if (element.matches(TEXT_BLOCK_SELECTOR) || element.matches(HEADING_SELECTOR)) continue;
+      walk(element, insideInteractive || element.matches(INTERACTIVE_SELECTOR));
+    }
+  };
+  walk(el, false);
+
+  return { text: collapse(text), proseLength: collapse(prose).length };
 }
 
 /** 연속 공백을 하나로 접고 앞뒤를 다듬는다. */

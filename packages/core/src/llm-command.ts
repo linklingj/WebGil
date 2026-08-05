@@ -1,3 +1,4 @@
+import { ActionExecutor } from "./action.js";
 import type { Action, CaptureSource, NodeId } from "./capture-source.js";
 import { NavigationEngine, type NavigationResult } from "./navigation.js";
 import { NarrationController } from "./narration.js";
@@ -141,7 +142,12 @@ export class LLMCommandEngine {
  * 액션은 반드시 `confirmed=true`로 다시 호출되어야 실행된다.
  */
 export class CommandDispatcher {
-  constructor(private readonly runtime: CommandRuntime) {}
+  /** 실행 경로는 액션 실행기(07) 하나로 통일한다 — 검증·하이라이트가 셸별로 갈리지 않도록. */
+  private readonly actions: ActionExecutor;
+
+  constructor(private readonly runtime: CommandRuntime) {
+    this.actions = new ActionExecutor(runtime.source, (id) => runtime.navigation.nodeById(id));
+  }
 
   async dispatch(resolution: CommandResolution, confirmed = false): Promise<CommandDispatchResult> {
     if (resolution.status === "rejected") return resolution;
@@ -157,8 +163,8 @@ export class CommandDispatcher {
           },
         };
       }
-      await this.runtime.source.execute(command.action);
-      this.runtime.source.highlight(command.action.nodeId);
+      const result = await this.actions.execute(command.action);
+      if (result.status === "rejected") return result;
       return { status: "executed", command };
     }
 
