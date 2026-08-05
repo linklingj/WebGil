@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/structure.test.ts src/tree.test.ts src/navigation.test.ts src/tts.test.ts src/llm-command.test.ts src/llm-provider.test.ts"
+    "test": "node --import tsx --test src/structure.test.ts src/tree.test.ts src/navigation.test.ts src/tts.test.ts src/llm-command.test.ts src/llm-provider.test.ts src/action.test.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",

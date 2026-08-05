@@ -55,6 +55,10 @@ export {
 } from "./llm-provider.js";
 export type { FetchFunction, LLMProvider, ProviderConfig } from "./llm-provider.js";
 
+// 07 액션 실행기 — 네비게이션·LLM 명령의 실행 경로를 하나로 모은다.
+export { ActionExecutor } from "./action.js";
+export type { ActionResult, NodeLookup } from "./action.js";
+
 // DOM → 의미 규칙(셸과 공유).
 export {
   SIGNIFICANT_SELECTOR,
