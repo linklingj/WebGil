@@ -7,7 +7,7 @@
   "scripts": {
     "build": "esbuild src/content.ts --bundle --format=iife --target=chrome110 --outfile=dist/content.js && cp manifest.json dist/",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/capture/extension-source.test.ts"
+    "test": "node --import tsx --test src/capture/extension-source.test.ts src/tts/web-speech-engine.test.ts"
   },
   "dependencies": {
     "@webgil/core": "workspace:*"

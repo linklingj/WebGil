@@ -1,6 +1,7 @@
-// content script — 코어(ExtensionSource + 구조 추출 + 네비게이션)를 실제 페이지에 마운트하는 확장 셸.
-// 사이드패널/트랙패드 UI 전 단계에서는 Alt 조합 키로 커서 엔진을 검증한다.
+// content script — 코어(ExtensionSource + 구조 추출 + 네비게이션 + 낭독)를 실제 페이지에 마운트하는 확장 셸.
+// 사이드패널/트랙패드 UI 전 단계에서는 Alt 조합 키로 커서 엔진과 TTS를 검증한다.
 import {
+  NarrationController,
   extractTree,
   NavigationEngine,
   treeStats,
@@ -8,8 +9,11 @@ import {
   type NavigationCommand,
 } from "@webgil/core";
 import { ExtensionSource } from "./capture/extension-source.js";
+import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
 const source = new ExtensionSource();
+const tts = new WebSpeechEngine();
+const narrator = new NarrationController(tts);
 let navigation: NavigationEngine | undefined;
 
 function scan() {
@@ -52,6 +56,10 @@ document.addEventListener("keydown", (event) => {
     console.log(
       `[WebGil] ${result.node.text} — 레벨 ${result.node.level}, ${result.index + 1}/${result.count}`,
     );
+    // 낭독 실패가 커서 이동을 막지 않도록 오류는 로그로만 남긴다.
+    void narrator
+      .announce(result.node, { index: result.index, count: result.count })
+      .catch((error) => console.warn("[WebGil] 낭독 실패", error));
   } else if (result.status === "boundary") {
     console.log("[WebGil] 더 이동할 수 없는 경계입니다.");
   } else {
@@ -97,10 +105,12 @@ function isEditableTarget(target: EventTarget | null): boolean {
   );
 }
 
-// 개발/데모용: 콘솔에서 source·scan·navigation을 직접 시험.
+// 개발/데모용: 콘솔에서 source·scan·navigation·narrator를 직접 시험.
 (window as unknown as { __webgil: unknown }).__webgil = {
   source,
   scan,
+  tts,
+  narrator,
   get navigation() {
     return navigation;
   },

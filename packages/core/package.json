@@ -11,7 +11,7 @@
   "scripts": {
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/structure.test.ts"
+    "test": "node --import tsx --test src/structure.test.ts src/tts.test.ts"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
