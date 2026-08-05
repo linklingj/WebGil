@@ -52,6 +52,11 @@ export class NavigationEngine {
     return this.currentId ? this.nodeIndex.get(this.currentId) ?? null : null;
   }
 
+  /** id로 문서 노드를 찾는다. LLM 액션 확인 UI가 대상 설명을 만들 때 사용한다. */
+  nodeById(id: NodeId): DocNode | null {
+    return this.nodeIndex.get(id) ?? null;
+  }
+
   /** 정규화된 입력 명령 하나를 처리한다. */
   handle(command: NavigationCommand): NavigationResult {
     switch (command) {

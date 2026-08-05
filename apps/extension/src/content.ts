@@ -1,14 +1,19 @@
 // content script — 코어(ExtensionSource + 구조 추출 + 네비게이션 + 낭독)를 실제 페이지에 마운트하는 확장 셸.
 // 사이드패널/트랙패드 UI 전 단계에서는 Alt 조합 키로 커서 엔진과 TTS를 검증한다.
 import {
+  CommandDispatcher,
+  LLMCommandEngine,
   NarrationController,
   extractTree,
   NavigationEngine,
   treeStats,
   treeToText,
+  type LanguageModel,
+  type LLMRequest,
   type NavigationCommand,
 } from "@webgil/core";
 import { ExtensionSource } from "./capture/extension-source.js";
+import { installCommandPalette } from "./llm/command-palette.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
 const source = new ExtensionSource();
@@ -33,18 +38,65 @@ function scan() {
   return tree;
 }
 
-scan();
+let documentTree = scan();
 
 // SPA 갱신 시 재추출(디바운스는 ExtensionSource 내부).
 source.onMutation(() => {
   console.log("[WebGil] DOM 변경 감지 — 재추출");
-  scan();
+  documentTree = scan();
 });
 
 // 키보드 폴백(Shift/Control/Meta 없이 Alt만 사용):
 // Alt+방향키 = 같은 레벨 이동, Alt+Enter = 하위 진입, Alt+Backspace = 상위 복귀.
 // 일반 페이지 입력과 브라우저 단축키에 영향을 주지 않도록 조합키·비편집 영역에서만 처리한다.
+class ExtensionLanguageModel implements LanguageModel {
+  async complete(request: LLMRequest): Promise<unknown> {
+    const response = await chrome.runtime.sendMessage<ChromeRuntimeMessageResponse>({
+      type: "webgil.llm.complete",
+      request,
+    });
+    if (!response.ok) throw new Error(response.error ?? "LLM 요청에 실패했습니다.");
+    return response.value;
+  }
+}
+
+const commandDispatcher = new CommandDispatcher({
+  navigation: navigation!,
+  source,
+  narrator,
+});
+const llm = new LLMCommandEngine(new ExtensionLanguageModel());
+let pendingCommand: Awaited<ReturnType<typeof llm.interpret>> | undefined;
+
+async function runNaturalLanguageCommand(input: string) {
+  const resolution = await llm.interpret(input, documentTree);
+  pendingCommand = resolution;
+  return commandDispatcher.dispatch(resolution);
+}
+
+async function confirmPendingCommand() {
+  if (!pendingCommand) throw new Error("확인할 명령이 없습니다.");
+  const command = pendingCommand;
+  pendingCommand = undefined;
+  return commandDispatcher.dispatch(command, true);
+}
+
+const commandPalette = installCommandPalette({
+  run: runNaturalLanguageCommand,
+  confirm: confirmPendingCommand,
+});
+
 document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && commandPalette.isOpen()) {
+    event.preventDefault();
+    commandPalette.close();
+    return;
+  }
+  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "l") {
+    event.preventDefault();
+    commandPalette.open();
+    return;
+  }
   const command = commandFor(event);
   if (!command || isEditableTarget(event.target)) return;
 
@@ -111,6 +163,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
   scan,
   tts,
   narrator,
+  runNaturalLanguageCommand,
+  confirmPendingCommand,
   get navigation() {
     return navigation;
   },

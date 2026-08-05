@@ -1,5 +1,18 @@
 {
   "manifest_version": 3,
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.anthropic.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
   "name": "WebGil (웹길)",
   "version": "0.1.0",
   "description": "구조 기반 스크린리더 — CaptureSource(ExtensionSource) MVP",

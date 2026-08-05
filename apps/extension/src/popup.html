@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>WebGil LLM 설정</title>
+    <style>
+      body { width: 300px; margin: 16px; font: 14px system-ui, sans-serif; }
+      label { display: block; margin-top: 12px; font-weight: 600; }
+      input, select, button { box-sizing: border-box; width: 100%; margin-top: 5px; padding: 8px; }
+      small { display: block; margin-top: 10px; color: #555; line-height: 1.4; }
+      #status { min-height: 20px; margin-top: 10px; color: #146c2e; }
+    </style>
+  </head>
+  <body>
+    <h1>WebGil LLM</h1>
+    <form id="settings">
+      <label for="provider">제공자</label>
+      <select id="provider" name="provider">
+        <option value="openai">OpenAI (ChatGPT API)</option>
+        <option value="gemini">Google Gemini API</option>
+        <option value="anthropic">Anthropic Claude API</option>
+      </select>
+      <label for="model">모델 ID</label>
+      <input id="model" name="model" required placeholder="사용할 모델 ID" autocomplete="off" />
+      <label for="apiKey">API 키</label>
+      <input id="apiKey" name="apiKey" type="password" required placeholder="이 기기에만 저장" autocomplete="off" />
+      <button type="submit">저장</button>
+      <p id="status" role="status"></p>
+    </form>
+    <small>키는 Chrome 확장 프로그램의 로컬 저장소에만 저장되며 Git이나 웹페이지에 전달하지 않습니다. 페이지 구조 텍스트는 선택한 LLM 제공자에 전송됩니다.</small>
+    <script src="popup.js"></script>
+  </body>
+</html>

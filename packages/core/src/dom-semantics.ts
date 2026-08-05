@@ -13,6 +13,9 @@ export const SIGNIFICANT_SELECTOR =
 /** 노드 id를 Element에 심어 두는 데이터 속성(재추출·액션 사이에서 노드를 재식별). */
 export const ID_ATTR = "data-webgil-id";
 
+/** WebGil 자체 UI는 페이지 구조 추출 및 LLM 컨텍스트에서 제외한다. */
+export const UI_ROOT_ATTR = "data-webgil-ui";
+
 // ponytail: 모듈 전역 시퀀스. 같은 Element는 한 번 받은 id를 계속 유지(재스캔에도 안정) —
 // SPA에서 동일 노드 추적(docs/03)의 최소 보장. 완전한 안정 id 규칙은 Phase 3.
 let seq = 0;

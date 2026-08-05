@@ -5,9 +5,9 @@
   "description": "ExtensionSource — CaptureSource의 1차(MVP) 구현 (Chrome MV3)",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/content.ts --bundle --format=iife --target=chrome110 --outfile=dist/content.js && cp manifest.json dist/",
+    "build": "node ./scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/capture/extension-source.test.ts src/tts/web-speech-engine.test.ts"
+    "test": "node --import tsx --test src/capture/extension-source.test.ts src/tts/web-speech-engine.test.ts src/llm/command-palette.test.ts"
   },
   "dependencies": {
     "@webgil/core": "workspace:*"
