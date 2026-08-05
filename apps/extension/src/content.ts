@@ -1,6 +1,7 @@
 // content script — 코어(ExtensionSource + 구조 추출 + 네비게이션 + 낭독)를 실제 페이지에 마운트하는 확장 셸.
 // 사이드패널/트랙패드 UI 전 단계에서는 Alt 조합 키로 커서 엔진과 TTS를 검증한다.
 import {
+  ActionExecutor,
   CommandDispatcher,
   LLMCommandEngine,
   NarrationController,
@@ -8,6 +9,7 @@ import {
   NavigationEngine,
   treeStats,
   treeToText,
+  type DocNode,
   type LanguageModel,
   type LLMRequest,
   type NavigationCommand,
@@ -39,6 +41,21 @@ function scan() {
 }
 
 let documentTree = scan();
+
+// 07 액션 실행기. 트리는 재추출마다 새로 만들어지므로 조회는 그때그때 네비게이션 인덱스에 묻는다.
+const actions = new ActionExecutor(source, (id) => navigation?.nodeById(id) ?? null);
+
+// 하위가 없는 노드에서의 Alt+Enter는 활성화로 해석한다(링크·버튼 클릭, 입력칸 포커스).
+async function activate(node: DocNode) {
+  const result = await actions.activate(node.id);
+  const message =
+    result.status === "executed" ? `${node.text || "항목"} 실행` : result.reason;
+  console.log(`[WebGil] ${message}`);
+  // 실행 결과는 화면을 못 보는 사용자에게 유일한 피드백이라 반드시 소리로 알린다.
+  void narrator
+    .announce({ text: message, kind: "text", level: node.level }, { detail: "brief" })
+    .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+}
 
 // SPA 갱신 시 재추출(디바운스는 ExtensionSource 내부).
 source.onMutation(() => {
@@ -104,6 +121,12 @@ document.addEventListener("keydown", (event) => {
   const result = navigation!.handle(command);
   if (result.node) source.highlight(result.node.id);
 
+  // 더 들어갈 하위가 없다 = 이 노드가 곧 목적지. 진입 대신 실행한다.
+  if (command === "enter" && result.status === "boundary" && result.node) {
+    void activate(result.node);
+    return;
+  }
+
   if (result.status === "moved" && result.node) {
     console.log(
       `[WebGil] ${result.node.text} — 레벨 ${result.node.level}, ${result.index + 1}/${result.count}`,
@@ -163,6 +186,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
   scan,
   tts,
   narrator,
+  actions,
   runNaturalLanguageCommand,
   confirmPendingCommand,
   get navigation() {
