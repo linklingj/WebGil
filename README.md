@@ -22,6 +22,10 @@ WebGil은 웹페이지를 시각적 픽셀 순서가 아니라 **의미적 문�
 | `apps/desktop` | `DesktopSource` — Electron 데스크톱 앱 (확장) |
 | `tools/bench` | `PlaywrightSource` — 개발/벤치 하니스 |
 
+## 실행
+
+확장 빌드 · Chrome 로드 · 조작법은 [`apps/extension/README.md`](apps/extension/README.md#실행-방법).
+
 ## 문서
 
 - [기획서](docs/00_PLAN/plan.md)
