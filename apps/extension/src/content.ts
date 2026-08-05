@@ -16,6 +16,7 @@ import {
 } from "@webgil/core";
 import { ExtensionSource } from "./capture/extension-source.js";
 import { installCommandPalette } from "./llm/command-palette.js";
+import { TouchNavigationController } from "./navigation/touch-navigation.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
 const source = new ExtensionSource();
@@ -102,6 +103,11 @@ const commandPalette = installCommandPalette({
   run: runNaturalLanguageCommand,
   confirm: confirmPendingCommand,
 });
+const touchNavigation = new TouchNavigationController({
+  onCommand: handleNavigation,
+  shouldIgnoreTarget: isEditableTarget,
+});
+const touchNavigationStatus = createTouchNavigationStatus();
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && commandPalette.isOpen()) {
@@ -114,10 +120,20 @@ document.addEventListener("keydown", (event) => {
     commandPalette.open();
     return;
   }
+  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "t") {
+    if (isEditableTarget(event.target)) return;
+    event.preventDefault();
+    toggleTouchNavigation();
+    return;
+  }
   const command = commandFor(event);
   if (!command || isEditableTarget(event.target)) return;
 
   event.preventDefault();
+  handleNavigation(command);
+});
+
+function handleNavigation(command: NavigationCommand): void {
   const result = navigation!.handle(command);
   if (result.node) source.highlight(result.node.id);
 
@@ -137,10 +153,70 @@ document.addEventListener("keydown", (event) => {
       .catch((error) => console.warn("[WebGil] 낭독 실패", error));
   } else if (result.status === "boundary") {
     console.log("[WebGil] 더 이동할 수 없는 경계입니다.");
+    void narrator
+      .announce({ text: boundaryMessage(command), kind: "group", level: 0 }, { detail: "brief" })
+      .catch((error) => console.warn("[WebGil] 경계 안내 낭독 실패", error));
   } else {
     console.log("[WebGil] 탐색할 문서 노드가 없습니다.");
+    void narrator
+      .announce({ text: "탐색할 문서 항목이 없습니다.", kind: "group", level: 0 }, { detail: "brief" })
+      .catch((error) => console.warn("[WebGil] 빈 문서 안내 낭독 실패", error));
   }
-});
+}
+
+function boundaryMessage(command: NavigationCommand): string {
+  switch (command) {
+    case "next":
+      return "마지막 항목입니다.";
+    case "previous":
+      return "첫 번째 항목입니다.";
+    case "enter":
+      return "하위 항목이 없습니다.";
+    case "back":
+      return "상위 항목이 없습니다.";
+  }
+}
+
+function toggleTouchNavigation(): boolean {
+  const enabled = touchNavigation.toggle();
+  touchNavigationStatus.setAttribute("data-enabled", String(enabled));
+  touchNavigationStatus.textContent = enabled
+    ? "WebGil 터치 네비게이션 켜짐 · Alt + Shift + T로 끄기"
+    : "WebGil 터치 네비게이션 꺼짐";
+  void narrator
+    .announce(
+      { text: `터치 네비게이션 모드 ${enabled ? "켜짐" : "꺼짐"}`, kind: "group", level: 0 },
+      { detail: "brief" },
+    )
+    .catch((error) => console.warn("[WebGil] 모드 안내 낭독 실패", error));
+  return enabled;
+}
+
+function createTouchNavigationStatus(): HTMLElement {
+  const status = document.createElement("div");
+  status.setAttribute("data-webgil-ui", "touch-navigation-status");
+  status.setAttribute("role", "status");
+  status.setAttribute("aria-live", "polite");
+  status.setAttribute("data-enabled", "false");
+  Object.assign(status.style, {
+    position: "fixed",
+    right: "16px",
+    bottom: "16px",
+    zIndex: "2147483647",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    color: "#fff",
+    background: "#1f6feb",
+    font: "14px system-ui, sans-serif",
+    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
+    display: "none",
+  } satisfies Partial<CSSStyleDeclaration>);
+  const style = document.createElement("style");
+  style.setAttribute("data-webgil-ui", "touch-navigation-status-style");
+  style.textContent = '[data-webgil-ui="touch-navigation-status"][data-enabled="true"] { display: block !important; }';
+  document.documentElement.append(style, status);
+  return status;
+}
 
 function commandFor(event: KeyboardEvent): NavigationCommand | null {
   if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
@@ -187,6 +263,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
   tts,
   narrator,
   actions,
+  touchNavigation,
+  toggleTouchNavigation,
   runNaturalLanguageCommand,
   confirmPendingCommand,
   get navigation() {
