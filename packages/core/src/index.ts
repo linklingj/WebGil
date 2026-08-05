@@ -27,10 +27,39 @@ export {
 } from "./narration.js";
 export type { NarrationContext, NarrationTarget } from "./narration.js";
 
+// 06 LLM 명령: 자연어 명령을 검증 가능한 계획으로만 변환한다.
+export {
+  CommandDispatcher,
+  createDocumentContext,
+  LLMCommandEngine,
+  validateCommand,
+} from "./llm-command.js";
+export type {
+  ActionConfirmation,
+  CommandDispatchResult,
+  CommandRuntime,
+  CommandResolution,
+  DocumentContext,
+  DocumentContextOptions,
+  LanguageModel,
+  LLMCommand,
+  LLMRequest,
+  NavigationIntent,
+} from "./llm-command.js";
+
+export {
+  AnthropicMessagesModel,
+  createProviderLanguageModel,
+  GeminiOpenAICompatibleModel,
+  OpenAIResponsesModel,
+} from "./llm-provider.js";
+export type { FetchFunction, LLMProvider, ProviderConfig } from "./llm-provider.js";
+
 // DOM → 의미 규칙(셸과 공유).
 export {
   SIGNIFICANT_SELECTOR,
   ID_ATTR,
+  UI_ROOT_ATTR,
   ensureNodeId,
   headingLevel,
   roleOf,

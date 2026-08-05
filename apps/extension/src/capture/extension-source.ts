@@ -4,6 +4,7 @@
 import type { CaptureSource, AXNode, Action, NodeId } from "@webgil/core";
 import {
   SIGNIFICANT_SELECTOR,
+  UI_ROOT_ATTR,
   ID_ATTR,
   ensureNodeId,
   roleOf,
@@ -34,6 +35,7 @@ export class ExtensionSource implements CaptureSource {
   getAXTree(): AXNode[] {
     const out: AXNode[] = [];
     for (const el of this.doc.querySelectorAll<HTMLElement>(SIGNIFICANT_SELECTOR)) {
+      if (el.closest(`[${UI_ROOT_ATTR}]`)) continue;
       const id = ensureNodeId(el); // 액션/하이라이트가 이 id로 원본 노드를 되찾는다.
       const node: AXNode = { id, role: roleOf(el), name: accessibleName(el) };
       const level = headingLevel(el);

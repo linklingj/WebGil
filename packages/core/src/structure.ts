@@ -4,6 +4,7 @@
 // 원본 Element를 handle로 보존 → 액션 실행기(07)가 같은 노드를 지목한다. (plan.md §3.1, docs/01_SYSTEM/02·03)
 import {
   SIGNIFICANT_SELECTOR,
+  UI_ROOT_ATTR,
   ensureNodeId,
   roleOf,
   accessibleName,
@@ -105,6 +106,7 @@ export function extractTree(doc: Document): DocNode {
   const top = () => stack[stack.length - 1];
 
   for (const el of doc.querySelectorAll<HTMLElement>(SIGNIFICANT_SELECTOR)) {
+    if (el.closest(`[${UI_ROOT_ATTR}]`)) continue;
     if (isHidden(el)) continue;
     const role = roleOf(el);
     const kind = kindOf(role);
