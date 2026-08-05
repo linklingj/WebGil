@@ -96,6 +96,76 @@ test("빈 이름 링크·중복 leaf·빈 그룹을 정리한다", () => {
   assert.equal(find(root, "") ?? null, null, "빈 이름 노드는 없다");
 });
 
+test("본문 문단이 헤딩 아래 텍스트 노드로 들어간다", () => {
+  const root = tree(`
+    <h2>소개</h2>
+    <p>스크린 리더는 화면 낭독 소프트웨어다.</p>
+    <p>두 번째 문단이다.</p>
+  `);
+  const section = find(root, "소개")!;
+  const texts = section.children.filter((c) => c.kind === "text");
+
+  assert.deepEqual(texts.map((t) => t.text), [
+    "스크린 리더는 화면 낭독 소프트웨어다.",
+    "두 번째 문단이다.",
+  ]);
+  assert.ok(texts[0].handle, "본문도 원본 Element handle을 보존한다");
+});
+
+test("문단 중간의 링크는 문장에 포함해 읽고, 링크 노드로도 따로 남는다", () => {
+  const root = tree(`<main><p>자세한 내용은 <a href="/docs">문서</a>를 보라.</p></main>`);
+  const main = root.children[0];
+
+  assert.equal(find(main, "자세한 내용은 문서를 보라.")?.kind, "text", "문장이 끊기지 않는다");
+  assert.ok(
+    main.children.some((c) => c.kind === "link" && c.text === "문서"),
+    "링크는 조작 가능한 노드로 따로 남는다",
+  );
+});
+
+test("링크만 든 목록 껍데기는 버리고 설명이 있는 항목은 남긴다", () => {
+  const root = tree(`
+    <main>
+      <ul>
+        <li><a href="/a">메뉴A</a></li>
+        <li><a href="/b">메뉴B</a></li>
+        <li>준비 중인 항목</li>
+      </ul>
+    </main>
+  `);
+  const main = root.children[0];
+  const texts: DocNode[] = [];
+  const collect = (n: DocNode) => { if (n.kind === "text") texts.push(n); n.children.forEach(collect); };
+  collect(main);
+
+  assert.deepEqual(texts.map((t) => t.text), ["준비 중인 항목"]);
+});
+
+test("중첩 블록은 안쪽 노드로만 들어간다(같은 문장 중복 금지)", () => {
+  const root = tree(`<main><li>바깥 항목<p>안쪽 문단</p></li></main>`);
+  const texts: DocNode[] = [];
+  const collect = (n: DocNode) => { if (n.kind === "text") texts.push(n); n.children.forEach(collect); };
+  collect(root);
+
+  assert.deepEqual(texts.map((t) => t.text).sort(), ["바깥 항목", "안쪽 문단"]);
+});
+
+test("긴 본문은 자르지 않는다(낭독 분할은 TTS의 몫)", () => {
+  const long = "가".repeat(500);
+  const root = tree(`<main><p>${long}</p></main>`);
+
+  assert.equal(find(root, long)?.text.length, 500);
+});
+
+test("본문 문단은 그룹 버킷으로 묶지 않는다", () => {
+  const paras = Array.from({ length: 12 }, (_, i) => `<p>문단 ${i} 내용</p>`).join("");
+  const root = tree(`<main>${paras}</main>`);
+  const main = root.children[0];
+
+  assert.equal(main.children.filter((c) => c.kind === "text").length, 12);
+  assert.equal(main.children.some((c) => c.kind === "group"), false, "문단은 버킷에 숨지 않는다");
+});
+
 test("treeStats: 총계·최상위·깊이를 센다", () => {
   const root = tree(`<h1>A</h1><h2>B</h2><a href="/c">C</a>`);
   const s = treeStats(root);

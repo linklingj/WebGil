@@ -4,7 +4,9 @@
 // 원본 Element를 handle로 보존 → 액션 실행기(07)가 같은 노드를 지목한다. (plan.md §3.1, docs/01_SYSTEM/02·03)
 import {
   SIGNIFICANT_SELECTOR,
+  TEXT_BLOCK_SELECTOR,
   UI_ROOT_ATTR,
+  blockText,
   ensureNodeId,
   roleOf,
   accessibleName,
@@ -17,8 +19,10 @@ import type { DocNode, NodeKind } from "./tree.js"; // 03 문서 트리 스키�
 // --- 규칙 상수 (실사이트 튜닝 노브) ---
 /** 한 부모 안에서 같은 kind의 leaf가 이 수 이상이면 하나의 그룹으로 묶는다. */
 const GROUP_MIN = 6;
-/** 낭독·표시용 이름 최대 길이. */
+/** 낭독·표시용 이름 최대 길이. 본문 블록은 잘리면 내용이 사라지므로 적용하지 않는다. */
 const MAX_NAME = 200;
+/** 본문 블록으로 인정할 최소 문장 길이. 이보다 짧으면 링크·아이콘 껍데기로 본다. */
+const MIN_PROSE = 2;
 
 const LANDMARK_ROLES = new Set([
   "navigation",
@@ -110,7 +114,15 @@ export function extractTree(doc: Document): DocNode {
     if (isHidden(el)) continue;
     const role = roleOf(el);
     const kind = kindOf(role);
-    if (!kind) continue;
+    if (!kind) {
+      // 본문 블록(p·li·td…). 명시 role이 없을 때만 — `<li role=button>`은 위에서 버튼으로 잡힌다.
+      if (!el.matches(TEXT_BLOCK_SELECTOR)) continue;
+      const block = blockText(el);
+      // 링크·버튼만 든 목록 껍데기는 버린다. 그 안의 링크는 자기 노드로 이미 들어온다.
+      if (block.proseLength < MIN_PROSE) continue;
+      top().node.children.push(leafNode(el, "text", block.text));
+      continue;
+    }
 
     if (kind === "group") {
       // landmark: 페이지 최상위 영역. root 아래에 붙이고 이후 콘텐츠의 열린 섹션으로 리셋.
@@ -151,6 +163,9 @@ function prune(n: DocNode): void {
 }
 
 const LEAF_KINDS = new Set<NodeKind>(["link", "button", "input", "text"]);
+// 본문 문단은 묶지 않는다 — 한 단계 아래로 숨기면 헤딩에서 내려와도 읽을 게 없는 지금 문제가 그대로다.
+// ponytail: 그 대가로 alt 이미지가 많은 페이지는 한 레벨이 길어진다. 버킷 페이징(개선안 A-3) 때 재검토.
+const BUCKET_KINDS = new Set<NodeKind>(["link", "button", "input"]);
 
 /** 같은 부모 안 (kind, text)가 완전히 같은 leaf 중복 제거(첫 개만 유지). 반복 내비·중복 링크 정리. */
 function dedupeLeaves(n: DocNode): void {
@@ -167,7 +182,7 @@ function dedupeLeaves(n: DocNode): void {
 /** 같은 부모 안 같은 kind leaf가 GROUP_MIN 이상이면 하나의 그룹으로 묶어 현재 레벨을 짧게 유지. */
 function bucketByKind(n: DocNode): void {
   const counts: Record<string, number> = {};
-  for (const c of n.children) if (LEAF_KINDS.has(c.kind)) counts[c.kind] = (counts[c.kind] ?? 0) + 1;
+  for (const c of n.children) if (BUCKET_KINDS.has(c.kind)) counts[c.kind] = (counts[c.kind] ?? 0) + 1;
   const grouped = new Set(Object.keys(counts).filter((k) => counts[k] >= GROUP_MIN));
   if (grouped.size === 0) return;
 
@@ -175,7 +190,7 @@ function bucketByKind(n: DocNode): void {
   const buckets: Record<string, DocNode> = {};
   const out: DocNode[] = [];
   for (const c of n.children) {
-    if (LEAF_KINDS.has(c.kind) && grouped.has(c.kind)) {
+    if (BUCKET_KINDS.has(c.kind) && grouped.has(c.kind)) {
       let b = buckets[c.kind];
       if (!b) {
         b = bucketNode(`${KIND_LABEL[c.kind] ?? c.kind} ${counts[c.kind]}개`);

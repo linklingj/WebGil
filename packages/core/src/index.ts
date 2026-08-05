@@ -62,8 +62,10 @@ export type { ActionResult, NodeLookup } from "./action.js";
 // DOM → 의미 규칙(셸과 공유).
 export {
   SIGNIFICANT_SELECTOR,
+  TEXT_BLOCK_SELECTOR,
   ID_ATTR,
   UI_ROOT_ATTR,
+  blockText,
   ensureNodeId,
   headingLevel,
   roleOf,
@@ -71,3 +73,4 @@ export {
   collapse,
   isHidden,
 } from "./dom-semantics.js";
+export type { BlockText } from "./dom-semantics.js";
