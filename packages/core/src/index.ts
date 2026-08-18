@@ -11,6 +11,10 @@ export type {
 // 02 구조 추출 엔진.
 export { extractTree } from "./structure.js";
 
+// 02-L LLM 트리 재구성 — 규칙 기반 트리를 재배치만으로 다듬는다(핸들 보존).
+export { applyRefinePlan, refineTree } from "./tree-refine.js";
+export type { RefineOptions, RefinePlan, RefinePlanNode, RefineResult } from "./tree-refine.js";
+
 // 03 문서 트리 모델 — 코어 전 엔진이 공유하는 스키마 + 읽기 헬퍼.
 export { indexById, treeStats, treeToText } from "./tree.js";
 export type { DocNode, NodeKind, TreeStats } from "./tree.js";

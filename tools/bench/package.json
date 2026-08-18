@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "observe": "node --import tsx run.ts",
+    "refine": "node --env-file-if-exists=../../.env --import tsx refine.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

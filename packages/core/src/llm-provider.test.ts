@@ -37,6 +37,8 @@ test("OpenAI Responses 어댑터: output_text의 JSON을 명령 객체로 바꾼
   assert.equal(fake.calls[0].url, "https://api.openai.com/v1/responses");
   assert.match(String(fake.calls[0].init?.body), /다음으로 이동/);
   assert.match(String(fake.calls[0].init?.body), /UNTRUSTED_PAGE_DATA_START/);
+  // OpenAI json_object 형식은 입력 메시지에 "json"이 없으면 400을 낸다(system에만 있으면 거부).
+  assert.match(String(JSON.parse(String(fake.calls[0].init?.body)).input), /json/);
 });
 
 test("Gemini 호환 어댑터: Chat Completions 형식의 JSON을 읽는다", async () => {

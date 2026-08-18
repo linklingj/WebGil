@@ -1,4 +1,4 @@
-// 관찰 하니스 — test-sites.md의 URL을 받아 HTML을 가져와 jsdom에 세우고,
+// 관찰 하니스 — docs/03_RESEARCH/test_sites.md의 URL을 받아 HTML을 가져와 jsdom에 세우고,
 // 구조 추출 엔진(02)을 돌려 트리 요약(개수·깊이·개요)을 콘솔에 찍는다.
 // SSR 페이지는 실제 트리가 나오고, JS 렌더 SPA는 얇은 셸만 잡히므로 렌더 경로(확장)로 확인해야 한다.
 // 실행: pnpm --filter @webgil/bench observe [url ...]
@@ -12,7 +12,7 @@ const UA =
 function siteUrls(): string[] {
   const args = process.argv.slice(2);
   if (args.length) return args;
-  const md = readFileSync(new URL("./test-sites.md", import.meta.url), "utf8");
+  const md = readFileSync(new URL("../../docs/03_RESEARCH/test_sites.md", import.meta.url), "utf8");
   return [...md.matchAll(/^\s*-\s*(https?:\/\/\S+)/gm)].map((m) => m[1]);
 }
 
