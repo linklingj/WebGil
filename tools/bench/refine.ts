@@ -1,11 +1,10 @@
 // 02-L LLM 트리 재구성 벤치 — 테스트 사이트에서 규칙 기반 트리(02)와 재구성 트리를 나란히 본다.
 //
-// 제공자 설정(WEBGIL_PROVIDER/WEBGIL_MODEL/WEBGIL_API_KEY)이 있으면 실제 LLM을 호출하고,
-// 없으면 드라이런 — 실제 페이지가 재구성 한도(maxNodes/maxChars) 안에 들어오는지만 측정한다.
+// 제공자 설정(루트 `.env`의 WEBGIL_PROVIDER/WEBGIL_MODEL/WEBGIL_API_KEY — `.env.example` 참고)이 있으면
+// 실제 LLM을 호출하고, 없으면 드라이런 — 페이지가 재구성 한도(maxNodes/maxChars) 안에 들어오는지만 잰다.
 // 한도를 넘으면 refineTree가 원본을 그대로 쓰므로, 이 숫자가 곧 "이 사이트에서 기능이 도느냐"다.
 //
 // 실행: pnpm --filter @webgil/bench refine [url ...]
-//   WEBGIL_PROVIDER=anthropic WEBGIL_MODEL=claude-sonnet-5 WEBGIL_API_KEY=... pnpm --filter @webgil/bench refine
 import { readFileSync } from "node:fs";
 import { JSDOM, VirtualConsole } from "jsdom";
 import {
@@ -22,19 +21,13 @@ import {
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36";
 
-// 목록 파일 두 곳을 모두 읽는다. `- https://…` 형식과 맨 URL 한 줄 형식을 함께 받는다.
-const SITE_FILES = [
-  new URL("./test-sites.md", import.meta.url),
-  new URL("../../docs/03_RESEARCH/test_sites.md", import.meta.url),
-];
+const SITE_FILE = new URL("../../docs/03_RESEARCH/test_sites.md", import.meta.url);
 
 function siteUrls(): string[] {
   const args = process.argv.slice(2);
   if (args.length) return args;
-  const urls = SITE_FILES.flatMap((file) =>
-    [...readFileSync(file, "utf8").matchAll(/^\s*(?:-\s*)?(https?:\/\/\S+)/gm)].map((m) => m[1]),
-  );
-  return [...new Set(urls)];
+  const md = readFileSync(SITE_FILE, "utf8");
+  return [...md.matchAll(/^\s*-\s*(https?:\/\/\S+)/gm)].map((m) => m[1]);
 }
 
 function providerModel() {
@@ -101,6 +94,6 @@ async function bench(url: string, model: ReturnType<typeof providerModel>): Prom
 
 const model = providerModel();
 if (!model) {
-  console.log("WEBGIL_PROVIDER/WEBGIL_MODEL/WEBGIL_API_KEY 미설정 — 드라이런(한도 측정)만 실행합니다.");
+  console.log("제공자 미설정(.env.example → .env) — 드라이런(한도 측정)만 실행합니다.");
 }
 for (const url of siteUrls()) await bench(url, model);

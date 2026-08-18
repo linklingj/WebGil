@@ -110,7 +110,7 @@ interface RefinePlan {
 - `packages/core/src/tree-refine.ts` — `refineTree(root, model, options?): Promise<RefineResult>`. 내부에서 직렬화(§4) → `model.complete()` → 검증(§6) → 재조립(§7). throw하지 않고 `{ status: "refined" | "fallback", tree, reason? }`를 낸다 — `tree`는 어떤 경우에도 바로 쓸 수 있어(실패 시 원본) 호출부가 폴백을 따로 처리할 필요가 없고, 왜 건너뛰었는지는 `reason`으로 남는다.
   - `applyRefinePlan(root, raw, options?)`도 함께 내보낸다: LLM을 모르는 순수 함수라 계획 처리 로직만 따로 시험할 수 있다.
 - `packages/core/src/tree-refine.test.ts` — `llm-command.test.ts`와 같은 방식의 가짜 `LanguageModel`(고정 응답)로 검증. 프레임워크·픽스처 추가 없이 `node:test` 그대로.
-- `tools/bench/refine.ts` (`pnpm --filter @webgil/bench refine`) — 테스트 사이트 목록 두 곳(`tools/bench/test-sites.md`, `docs/03_RESEARCH/test_sites.md`)을 읽어 규칙 트리와 재구성 트리를 나란히 출력. 제공자 환경변수(`WEBGIL_PROVIDER`/`WEBGIL_MODEL`/`WEBGIL_API_KEY`)가 없으면 **드라이런** — 실제 페이지가 컨텍스트 한도 안에 들어오는지만 잰다.
+- `tools/bench/refine.ts` (`pnpm --filter @webgil/bench refine`) — [`docs/03_RESEARCH/test_sites.md`](../03_RESEARCH/test_sites.md)를 읽어 규칙 트리와 재구성 트리를 나란히 출력. 루트 `.env`(→ `.env.example`)에 제공자 설정이 없으면 **드라이런** — 실제 페이지가 컨텍스트 한도 안에 들어오는지만 잰다.
 - `packages/core/src/index.ts`에 `refineTree`/`applyRefinePlan`/타입 export 추가.
 
 ## 10. 측정 (2026-08-18, jsdom 경로)
@@ -119,9 +119,9 @@ interface RefinePlan {
 
 | 결과 | 수 | 비고 |
 |---|---|---|
-| 한도 안 → 재구성 가능 | 9 | 노드 60~262, 컨텍스트 2.7k~14.2k자 |
+| 한도 안 → 재구성 가능 | 8 | 노드 60~262, 컨텍스트 2.7k~14.2k자 |
 | 한도 초과 → 건너뜀 | 1 | 세종대 공지(노드 1,242, 링크 1,128) — §11 청킹 과제 |
-| 노드 0 (JS 렌더) | 3 | 홈택스×2·무신사 — jsdom 한계(02-R §4.4), 재구성과 무관 |
+| 노드 0 (JS 렌더) | 4 | 오픈소스대회·홈택스×2·무신사 — jsdom 한계(02-R §4.4), 재구성과 무관 |
 
 재구성이 겨냥하는 문제가 숫자로 보인다 — 기상청 페이지의 최상위 14개가 `본문 바로가기 | 머리말 | 옵션 메뉴 | 주 메뉴 | 보조 정보 | 부 메뉴 | 페이지 경로 | 바닥글 | 탐색 ×6`으로, 사용자가 처음 만나는 항목이 전부 chrome이고 "탐색"이 6번 반복된다(P1-E).
 
