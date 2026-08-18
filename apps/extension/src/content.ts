@@ -7,6 +7,7 @@ import {
   NarrationController,
   extractTree,
   NavigationEngine,
+  refineTree,
   treeStats,
   treeToText,
   type DocNode,
@@ -99,6 +100,23 @@ async function confirmPendingCommand() {
   return commandDispatcher.dispatch(command, true);
 }
 
+// 02-L LLM 트리 재구성. 비용·지연이 있는 원격 호출이라 자동이 아니라 사용자가 부를 때만 돈다.
+// ponytail: 다음 mutation의 scan()이 규칙 기반 트리로 되돌린다. 재구성 유지는 UX 결정이 선 뒤에.
+async function refineDocumentTree(): Promise<string> {
+  const result = await refineTree(documentTree, new ExtensionLanguageModel());
+  if (result.status === "refined") {
+    documentTree = result.tree;
+    const refresh = navigation!.replaceTree(result.tree);
+    if (refresh?.node) source.highlight(refresh.node.id);
+    const stats = treeStats(result.tree);
+    console.log(`[WebGil] 트리 재구성: 최상위 ${stats.topLevel}개 · 노드 ${stats.total}개`, stats.byKind);
+    console.log(treeToText(result.tree));
+    return `문서 구조를 다시 정리했습니다. 최상위 ${stats.topLevel}개 항목입니다.`;
+  }
+  console.log(`[WebGil] 트리 재구성 건너뜀 — ${result.reason}`);
+  return `문서 구조를 그대로 씁니다. ${result.reason}`;
+}
+
 const commandPalette = installCommandPalette({
   run: runNaturalLanguageCommand,
   confirm: confirmPendingCommand,
@@ -124,6 +142,16 @@ document.addEventListener("keydown", (event) => {
     if (isEditableTarget(event.target)) return;
     event.preventDefault();
     toggleTouchNavigation();
+    return;
+  }
+  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "r") {
+    if (isEditableTarget(event.target)) return;
+    event.preventDefault();
+    void refineDocumentTree()
+      .then((message) =>
+        narrator.announce({ text: message, kind: "group", level: 0 }, { detail: "brief" }),
+      )
+      .catch((error) => console.warn("[WebGil] 트리 재구성 실패", error));
     return;
   }
   const command = commandFor(event);
@@ -267,6 +295,7 @@ function isEditableTarget(target: EventTarget | null): boolean {
   toggleTouchNavigation,
   runNaturalLanguageCommand,
   confirmPendingCommand,
+  refineDocumentTree,
   get navigation() {
     return navigation;
   },

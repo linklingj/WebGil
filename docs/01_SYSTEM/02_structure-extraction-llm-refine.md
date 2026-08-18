@@ -58,13 +58,15 @@ LLM은 트리를 직접 만들지 않고, **기존 id를 어떻게 접을지에 
 
 ```ts
 type RefinePlanNode =
-  | { ref: NodeId }                                   // 기존 leaf/group 그대로 이 위치에
+  | { ref: NodeId; children?: RefinePlanNode[] }      // 기존 노드를 이 위치에
   | { group: string; children: RefinePlanNode[] };     // 새 그룹 라벨 + 그 아래 재배치
 
 interface RefinePlan {
   root: RefinePlanNode[];   // 최상위 순서 = 사용자가 보는 순서
 }
 ```
+
+`ref`의 `children`은 **선택**이다 — 생략하면 원본 하위 트리가 그대로 따라오고, 주면 그 아래만 갈아끼운다. 손대지 않을 섹션을 `{"ref":id}` 한 줄로 넘길 수 있어 출력 토큰이 줄고, LLM이 깜빡 빠뜨려 통째로 사라지는 사고도 줄어든다.
 
 시스템 프롬프트 원칙(06의 `SYSTEM_PROMPT`와 같은 톤으로 작성):
 
@@ -105,23 +107,40 @@ interface RefinePlan {
 
 ## 9. 새 파일
 
-- `packages/core/src/tree-refine.ts` — `refineTree(root: DocNode, model: LanguageModel, options?: RefineOptions): Promise<DocNode>`. 내부에서 직렬화(§4) → `model.complete()` → 검증(§6) → 재조립(§7). 실패 시 원본 `root` 그대로 반환(throw 안 함 — 호출부가 폴백을 매번 처리하지 않도록).
-- `packages/core/src/tree-refine.test.ts` — `llm-command.test.ts`가 쓰는 것과 같은 가짜 `LanguageModel`(고정 JSON 응답)로: 정상 플랜 재조립, 존재하지 않는 id 무시, 과도한 삭제 시 폴백, group id 안정성(같은 라벨 재계산 시 같은 id)을 검증. 프레임워크·픽스처 추가 없이 `node:test` 그대로.
-- `packages/core/src/index.ts`에 `refineTree`/`RefinePlan` export 추가.
+- `packages/core/src/tree-refine.ts` — `refineTree(root, model, options?): Promise<RefineResult>`. 내부에서 직렬화(§4) → `model.complete()` → 검증(§6) → 재조립(§7). throw하지 않고 `{ status: "refined" | "fallback", tree, reason? }`를 낸다 — `tree`는 어떤 경우에도 바로 쓸 수 있어(실패 시 원본) 호출부가 폴백을 따로 처리할 필요가 없고, 왜 건너뛰었는지는 `reason`으로 남는다.
+  - `applyRefinePlan(root, raw, options?)`도 함께 내보낸다: LLM을 모르는 순수 함수라 계획 처리 로직만 따로 시험할 수 있다.
+- `packages/core/src/tree-refine.test.ts` — `llm-command.test.ts`와 같은 방식의 가짜 `LanguageModel`(고정 응답)로 검증. 프레임워크·픽스처 추가 없이 `node:test` 그대로.
+- `tools/bench/refine.ts` (`pnpm --filter @webgil/bench refine`) — 테스트 사이트 목록 두 곳(`tools/bench/test-sites.md`, `docs/03_RESEARCH/test_sites.md`)을 읽어 규칙 트리와 재구성 트리를 나란히 출력. 제공자 환경변수(`WEBGIL_PROVIDER`/`WEBGIL_MODEL`/`WEBGIL_API_KEY`)가 없으면 **드라이런** — 실제 페이지가 컨텍스트 한도 안에 들어오는지만 잰다.
+- `packages/core/src/index.ts`에 `refineTree`/`applyRefinePlan`/타입 export 추가.
 
-## 10. 실행 순서
+## 10. 측정 (2026-08-18, jsdom 경로)
 
-| # | 작업 | 근거 |
+`pnpm --filter @webgil/bench refine` 드라이런. 13개 사이트 중:
+
+| 결과 | 수 | 비고 |
 |---|---|---|
-| 1 | `RefinePlan` 타입 + 프롬프트 + `refineTree()` 뼈대(직렬화→호출→미검증 재조립) | §5, §7 |
-| 2 | 검증 레이어(§6) — id 존재 확인, 과삭제 안전판, 중복 참조 방지 | §6 |
-| 3 | group 결정적 id(§7 후반) | P2-G 재발 방지 |
-| 4 | `tree-refine.test.ts` | ponytail 규칙 — 분기 있는 로직은 실행 가능한 자체 검증 필수 |
-| 5 | `content.ts` `scan()`에 배선(옵션 플래그로, 기본 꺼짐 — 비용·지연 있는 API 호출이라 매 mutation마다 자동 실행하지 않음) | §3 |
-| 6 | `tools/bench`에 전/후 비교 배선, 02-R 표와 같은 형식으로 측정(최상위 항목 수·본문 도달 키 입력 수) | §3, 02-R §4.4 |
+| 한도 안 → 재구성 가능 | 9 | 노드 60~262, 컨텍스트 2.7k~14.2k자 |
+| 한도 초과 → 건너뜀 | 1 | 세종대 공지(노드 1,242, 링크 1,128) — §11 청킹 과제 |
+| 노드 0 (JS 렌더) | 3 | 홈택스×2·무신사 — jsdom 한계(02-R §4.4), 재구성과 무관 |
+
+재구성이 겨냥하는 문제가 숫자로 보인다 — 기상청 페이지의 최상위 14개가 `본문 바로가기 | 머리말 | 옵션 메뉴 | 주 메뉴 | 보조 정보 | 부 메뉴 | 페이지 경로 | 바닥글 | 탐색 ×6`으로, 사용자가 처음 만나는 항목이 전부 chrome이고 "탐색"이 6번 반복된다(P1-E).
+
+같은 페이지의 실제 트리에 "본문류를 앞으로, chrome은 한 그룹으로" 계획을 넣어 `applyRefinePlan`을 왕복시킨 결과:
+
+| 지표 | 값 |
+|---|---|
+| 최상위 항목 | 14 → **4** |
+| 핸들 소실 | **0** |
+| 텍스트 변조 | **0** |
+| 원본 노드 손실 | **0** |
+| level 재계산 | 전 노드 깊이 일치 |
+| 원본 트리 변형 | 없음(깊은 복사) |
+
+즉 §2의 핵심 제약(핸들·텍스트는 원본에서만 온다)이 실제 페이지 트리에서 지켜진다. 실제 LLM 출력 품질은 API 키가 있는 환경에서 같은 벤치로 확인해야 한다.
 
 ## 11. 미결정 / 리스크
 
-- **비용·지연**: 매 SPA mutation마다 재구성 호출은 비싸다 — 06처럼 명시적 트리거(사용자가 "정리해줘" 명령을 내리거나, 최초 로드 1회만)로 제한할지는 UX 결정이 필요. 기본은 자동 실행 안 함(§10-5).
-- **청킹 경계**: 섹션별로 나눠 재구성하면 섹션을 가로지르는 재배치(예: 다른 섹션에 흩어진 관련 카드 통합)는 못 한다. 대부분의 실사이트는 §4 "1차: 그대로 시도"로 충분(02-R 실측 기준), 위키백과급만 이 한계에 부딪힌다 — 초기 버전은 이 한계를 감수하고 진행.
+- **자동 실행 안 함**: 확장에서는 `Alt+Shift+R`(또는 콘솔 `__webgil.refineDocumentTree()`)로만 돈다. 비용·지연이 있는 원격 호출이라 매 mutation에 붙이지 않았다. 대신 **다음 mutation의 `scan()`이 규칙 트리로 되돌린다** — 재구성 결과를 유지할지는 UX 결정이 선 뒤에.
+- **큰 문서는 그냥 건너뛴다**: 컨텍스트가 한도를 넘으면(`truncated`) 호출조차 하지 않고 원본을 쓴다. 안 보낸 노드가 "계획에서 빠진 노드"로 오인돼 삭제되는 게 더 나쁘기 때문. 실측상 13개 중 1개가 여기 걸린다(§10) → **§4의 섹션 청킹이 다음 과제**.
+- **입력칸 라벨 손실**: 재사용한 `safeTextForRemoteModel`이 `input` 노드의 텍스트를 통째로 `[input field; current value withheld]`로 바꾼다. 프라이버시는 지켜지지만 LLM이 "어떤 입력칸인지" 몰라 양식 재구성 품질이 떨어진다. 값과 라벨을 분리해 라벨만 보내는 개선은 실제 품질을 본 뒤에.
 - **평가 기준**: "시각적으로 볼 때 얻을 수 있는 구조와 비슷한가"는 자동 채점이 어렵다. 초기엔 02-R처럼 사람이 `treeToText` 출력을 눈으로 비교하는 방식으로 검증하고, 필요해지면 지표화한다(지금 만들지 않음 — YAGNI).
