@@ -4,6 +4,13 @@ interface WebGilStoredProviderConfig {
   model: string;
 }
 
+interface WebGilStoredTTSConfig {
+  provider: "elevenlabs";
+  apiKey: string;
+  voiceId: string;
+  model: "eleven_multilingual_v2";
+}
+
 interface ChromeRuntimeMessageResponse {
   ok: boolean;
   value?: unknown;

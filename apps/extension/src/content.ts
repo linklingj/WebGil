@@ -17,10 +17,11 @@ import {
 import { ExtensionSource } from "./capture/extension-source.js";
 import { installCommandPalette } from "./llm/command-palette.js";
 import { TouchNavigationController } from "./navigation/touch-navigation.js";
+import { ElevenLabsSpeechEngine } from "./tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
 const source = new ExtensionSource();
-const tts = new WebSpeechEngine();
+const tts = new ElevenLabsSpeechEngine(new WebSpeechEngine());
 const narrator = new NarrationController(tts);
 let navigation: NavigationEngine | undefined;
 
