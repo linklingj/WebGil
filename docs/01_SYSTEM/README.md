@@ -21,6 +21,8 @@ WebGil을 단위 엔진으로 나눈 기획 문서. 전체 기획은 [`../00_PLA
 |---|---|---|---|---|
 | 01 | [브라우저 인터페이스](01_capture-source.md) | 페이지 접근·관찰·제어의 유일한 교체 지점 | core 인터페이스 + 셸 | 1·2·6 |
 | 02 | [구조 추출 엔진](02_structure-extraction.md) | DOM+AX → 문서 트리 변환 | core | 1·3 |
+| 02-R | [구조 추출 — 현황 점검](02_structure-extraction-review.md) | 규칙 기반 트리 진단·개선안 | core | 3 |
+| 02-L | [구조 추출 — LLM 트리 재구성](02_structure-extraction-llm-refine.md) | 규칙 기반 트리를 LLM으로 후처리 재정리 | core | 3 |
 | 03 | [문서 트리 모델](03_document-tree.md) | 정규화된 계층 자료구조 | core | 1 |
 | 04 | [기본 네비게이션 엔진](04_navigation.md) | 제스처/키 → 커서 이동 | core | 2 |
 | 05 | [TTS 엔진](05_tts.md) | 텍스트 → 음성(로컬/API) | core | 2·5 |
