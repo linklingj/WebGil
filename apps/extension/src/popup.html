@@ -2,17 +2,19 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
-    <title>WebGil LLM 설정</title>
+    <title>WebGil 설정</title>
     <style>
       body { width: 300px; margin: 16px; font: 14px system-ui, sans-serif; }
       label { display: block; margin-top: 12px; font-weight: 600; }
       input, select, button { box-sizing: border-box; width: 100%; margin-top: 5px; padding: 8px; }
       small { display: block; margin-top: 10px; color: #555; line-height: 1.4; }
-      #status { min-height: 20px; margin-top: 10px; color: #146c2e; }
+      h1 { margin-bottom: 6px; }
+      h2 { margin: 24px 0 4px; font-size: 17px; }
+      #status, #ttsStatus { min-height: 20px; margin-top: 10px; color: #146c2e; }
     </style>
   </head>
   <body>
-    <h1>WebGil LLM</h1>
+    <h1>WebGil 설정</h1>
     <form id="settings">
       <label for="provider">제공자</label>
       <select id="provider" name="provider">
@@ -27,7 +29,20 @@
       <button type="submit">저장</button>
       <p id="status" role="status"></p>
     </form>
-    <small>키는 Chrome 확장 프로그램의 로컬 저장소에만 저장되며 Git이나 웹페이지에 전달하지 않습니다. 페이지 구조 텍스트는 선택한 LLM 제공자에 전송됩니다.</small>
+    <h2>ElevenLabs 음성</h2>
+    <form id="ttsSettings">
+      <label for="ttsApiKey">ElevenLabs API 키</label>
+      <input id="ttsApiKey" name="ttsApiKey" type="password" required placeholder="이 기기에만 저장" autocomplete="off" />
+      <label for="ttsVoiceId">여성 음성 ID</label>
+      <input id="ttsVoiceId" name="ttsVoiceId" required placeholder="ElevenLabs Voice ID" autocomplete="off" />
+      <label for="ttsModel">음성 모델</label>
+      <select id="ttsModel" name="ttsModel">
+        <option value="eleven_multilingual_v2">Eleven Multilingual v2 (고품질)</option>
+      </select>
+      <button type="submit">ElevenLabs 음성 저장</button>
+      <p id="ttsStatus" role="status"></p>
+    </form>
+    <small>API 키는 확장 프로그램의 신뢰된 저장소에만 보관되고 Background에서만 사용됩니다. ElevenLabs 음성을 사용하면 읽을 텍스트가 ElevenLabs에 전송됩니다. 키·Voice ID를 저장하지 않았거나 요청이 실패하면 브라우저 기본 음성으로 자동 전환됩니다.</small>
     <script src="popup.js"></script>
   </body>
 </html>

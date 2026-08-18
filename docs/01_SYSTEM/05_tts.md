@@ -39,7 +39,9 @@ interface VoiceOpts { voice?: string; rate?: number; pitch?: number; }
 - `formatNarration()`은 노드 텍스트에 종류·문서 **계층 깊이**·같은 레벨 순서를 붙여 "소개, 제목, 계층 2, 2번 항목, 전체 3개"처럼 읽는다. 간단 낭독 모드에서는 텍스트만 읽는다.
 - 확장 MVP 구현체는 `WebSpeechEngine`이다. Chrome/OS의 Web Speech API를 사용하고, 한국어 음성 중 `localService` 음성을 우선 선택한다. 별도 모델 설치는 필요 없지만, 로컬 음성이 없을 때의 시스템 음성은 OS 제공자에 따라 원격일 수 있으므로 **외부 전송이 없음을 보장하지 않는다**. 강한 로컬·프라이버시 보장은 Piper/Kokoro 등 별도 로컬 엔진에서 제공한다.
 - Chrome이 첫 `getVoices()` 호출에서 빈 목록을 줄 수 있으므로, 첫 낭독에만 최대 250ms 동안 `voiceschanged`를 기다린다. 그 뒤에도 목록이 비어 있으면 브라우저 기본 음성으로 폴백한다.
-- Piper/Kokoro 같은 로컬 신경망 엔진과 API 엔진은 이후 동일한 `TTSEngine`으로 교체한다.
+- ElevenLabs API 엔진은 `ElevenLabsSpeechEngine`으로 연결한다. API 키와 Voice ID는 확장 프로그램 설정에서만 입력하며, `chrome.storage.local`을 신뢰된 확장 컨텍스트로 제한해 Content Script와 웹페이지가 키를 읽지 못하게 한다. API 요청은 Background Service Worker가 처리하고 Content Script에는 재생용 오디오만 전달한다.
+- ElevenLabs 설정이 없거나 API·오디오 재생에 실패하면 `WebSpeechEngine`으로 자동 폴백한다. 따라서 API 키 없이도 기본 내비게이션 낭독은 계속 사용할 수 있다.
+- Piper/Kokoro 같은 로컬 신경망 엔진은 이후 동일한 `TTSEngine`으로 추가할 수 있다.
 - 네비게이션(04)의 이동 결과는 확장 콘텐츠 스크립트에서 `NarrationController.announce()`로 연결되어 자동 낭독된다.
 
 ## 의존
@@ -50,9 +52,10 @@ interface VoiceOpts { voice?: string; rate?: number; pitch?: number; }
 ## 범위 / Phase
 
 - Phase 2: 로컬 TTS + 음성 스타일 → 대회 MVP.
-- Phase 5: API TTS 옵션.
+- Phase 5: ElevenLabs API TTS 옵션(구현), 로컬 신경망 엔진은 후속 단계.
 
 ## 미결정 / 리스크
 
 - **확장(MV3)에서 로컬 엔진 실행 방식**: WASM(Piper wasm 등) vs 네이티브 메시징. 데스크톱(Phase 6)은 서브프로세스로 해결.
 - 긴 텍스트의 스트리밍/청크 낭독 경계(첫 소리까지 지연 최소화).
+- ElevenLabs 사용 시 읽을 텍스트가 외부 API에 전송된다. 민감 페이지에서는 API 음성을 저장하지 않거나 브라우저 기본 음성을 사용한다.
