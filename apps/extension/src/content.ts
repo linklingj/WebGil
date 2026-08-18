@@ -17,6 +17,7 @@ import {
 } from "@webgil/core";
 import { ExtensionSource } from "./capture/extension-source.js";
 import { installCommandPalette } from "./llm/command-palette.js";
+import { isAltShiftKey } from "./navigation/shortcuts.js";
 import { TouchNavigationController } from "./navigation/touch-navigation.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
@@ -133,18 +134,18 @@ document.addEventListener("keydown", (event) => {
     commandPalette.close();
     return;
   }
-  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "l") {
+  if (isAltShiftKey(event, "KeyL")) {
     event.preventDefault();
     commandPalette.open();
     return;
   }
-  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "t") {
+  if (isAltShiftKey(event, "KeyT")) {
     if (isEditableTarget(event.target)) return;
     event.preventDefault();
     toggleTouchNavigation();
     return;
   }
-  if (event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.key.toLowerCase() === "r") {
+  if (isAltShiftKey(event, "KeyR")) {
     if (isEditableTarget(event.target)) return;
     event.preventDefault();
     void refineDocumentTree()
