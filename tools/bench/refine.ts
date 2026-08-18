@@ -11,6 +11,7 @@ import {
   createDocumentContext,
   createProviderLanguageModel,
   extractTree,
+  indexById,
   refineTree,
   treeStats,
   treeToText,
@@ -51,6 +52,30 @@ function topLevel(tree: DocNode): string {
   return tree.children.map((c) => c.text || `(${c.kind})`).join(" | ") || "(없음)";
 }
 
+/**
+ * 02-L §2의 핵심 제약을 실제 LLM 출력에 대고 확인한다.
+ * 핸들이나 텍스트가 바뀌면 액션 실행기(07)가 엉뚱한 요소를 누르므로, 이게 0이 아니면 기능이 깨진 것이다.
+ */
+function invariants(before: DocNode, after: DocNode): string {
+  const source = indexById(before);
+  const result = indexById(after);
+  let lostHandle = 0;
+  let changedText = 0;
+  let invented = 0;
+  for (const [id, node] of result) {
+    const original = source.get(id);
+    if (!original) {
+      if (!id.startsWith("refine:")) invented++; // 새 그룹이 아닌데 원본에 없는 id
+      continue;
+    }
+    if (original.handle !== undefined && node.handle === undefined) lostHandle++;
+    if (original.text !== node.text) changedText++;
+  }
+  const dropped = [...source.keys()].filter((id) => !result.has(id)).length;
+  const ok = lostHandle === 0 && changedText === 0 && invented === 0;
+  return `${ok ? "✓" : "✗"} 핸들소실 ${lostHandle} · 텍스트변조 ${changedText} · 날조id ${invented} · 삭제 ${dropped}/${source.size}`;
+}
+
 async function bench(url: string, model: ReturnType<typeof providerModel>): Promise<void> {
   console.log("\n" + "=".repeat(72) + `\n${url}`);
 
@@ -89,6 +114,7 @@ async function bench(url: string, model: ReturnType<typeof providerModel>): Prom
   }
   console.log(`  [재구성] ${summary(result.tree)} · ${elapsed}ms`);
   console.log(`  최상위:  ${topLevel(result.tree)}`);
+  console.log(`  불변식:  ${invariants(before, result.tree)}`);
   console.log(treeToText(result.tree, 2).split("\n").slice(0, 40).map((l) => "    " + l).join("\n"));
 }
 
