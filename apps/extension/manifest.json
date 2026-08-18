@@ -4,7 +4,8 @@
   "host_permissions": [
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
-    "https://api.anthropic.com/*"
+    "https://api.anthropic.com/*",
+    "https://api.elevenlabs.io/*"
   ],
   "background": {
     "service_worker": "background.js",
