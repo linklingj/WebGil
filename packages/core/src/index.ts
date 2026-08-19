@@ -25,6 +25,7 @@ export type { NavigationCommand, NavigationResult } from "./navigation.js";
 
 // 05 TTS 엔진 + 노드 낭독 규칙.
 export type { TTSEngine, VoiceOptions, VoicePreset } from "./tts.js";
+export { normalizeKoreanNumberSpeech } from "./korean-number.js";
 export {
   NarrationController,
   formatNarration,
