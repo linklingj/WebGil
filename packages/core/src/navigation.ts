@@ -27,7 +27,9 @@ interface LocatedNode {
 /**
  * 문서 트리 위의 순수 커서 엔진.
  *
- * root 자신은 사용자에게 노출하지 않는다. 따라서 초기 위치는 root의 첫 자식이며,
+ * root 자신은 사용자에게 노출하지 않는다. semantic `main` 영역이 있으면 그 안의 첫 항목에서
+ * 시작하고, 없으면 root의 첫 자식에서 시작한다. 따라서 페이지 chrome을 지우지 않고도
+ * 사용자는 기본적으로 본문을 바로 읽을 수 있으며,
  * next/previous는 같은 부모의 형제 사이에서만 이동한다. 경계에서는 순환하지 않아
  * 셸이 효과음·TTS 등으로 "끝"을 알려줄 수 있다.
  */
@@ -44,7 +46,7 @@ export class NavigationEngine {
     this.nodeIndex = new Map();
     this.locationIndex = new Map();
     this.reindex();
-    this.currentId = root.children[0]?.id ?? null;
+    this.currentId = initialNode(root)?.id ?? null;
   }
 
   /** 현재 선택된 문서 노드. 비어 있는 트리에서는 null. */
@@ -104,10 +106,10 @@ export class NavigationEngine {
     return this.setCurrent(current.parent, current.node);
   }
 
-  /** 첫 최상위 노드로 커서를 되돌린다. */
+  /** 기본 시작점(본문 첫 항목 또는 첫 최상위 노드)으로 커서를 되돌린다. */
   reset(): NavigationResult {
     const previous = this.current;
-    const first = this.root.children[0];
+    const first = initialNode(this.root);
     if (!first) {
       this.currentId = null;
       return this.emptyResult(previous);
@@ -117,7 +119,7 @@ export class NavigationEngine {
 
   /**
    * SPA 갱신으로 새 스냅샷을 받는다. 같은 id의 노드가 남아 있으면 그 위치를 유지하고,
-   * 사라졌다면 가장 가까운 살아 있는 조상(없으면 첫 최상위 노드)으로 안전하게 돌아간다.
+   * 사라졌다면 가장 가까운 살아 있는 조상(없으면 기본 시작점)으로 안전하게 돌아간다.
    */
   replaceTree(root: DocNode): NavigationResult {
     const previous = this.current;
@@ -133,7 +135,7 @@ export class NavigationEngine {
       }
     }
 
-    this.currentId = this.root.children[0]?.id ?? null;
+    this.currentId = initialNode(this.root)?.id ?? null;
     return this.currentId ? this.result("moved", this.current!, previous) : this.emptyResult(previous);
   }
 
@@ -180,4 +182,24 @@ export class NavigationEngine {
     };
     visit(this.root, []);
   }
+}
+
+/**
+ * semantic main이 있으면 그 안의 첫 실제 항목을 기본 위치로 잡는다.
+ * main이 비어 있을 수는 없지만(구조 추출에서 prune), 수동 트리에도 안전하게 동작하게
+ * group 자신으로 한 번 더 폴백한다.
+ */
+function initialNode(root: DocNode): DocNode | undefined {
+  const main = findMain(root);
+  return main?.children[0] ?? main ?? root.children[0];
+}
+
+/** LLM 재구성이 main을 새 group으로 감싸도 기본 시작점의 의미는 유지한다. */
+function findMain(node: DocNode): DocNode | undefined {
+  for (const child of node.children) {
+    if (child.regionRole === "main") return child;
+    const nested = findMain(child);
+    if (nested) return nested;
+  }
+  return undefined;
 }

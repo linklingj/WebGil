@@ -213,9 +213,15 @@ function toggleTouchNavigation(): boolean {
   touchNavigationStatus.textContent = enabled
     ? "WebGil 터치 네비게이션 켜짐 · Alt + Shift + T로 끄기"
     : "WebGil 터치 네비게이션 꺼짐";
+  const current = navigation?.current;
+  const message = enabled
+    ? current
+      ? `터치 네비게이션 켜짐. 현재 ${current.text}`
+      : "터치 네비게이션 켜짐. 탐색할 문서 항목이 없습니다."
+    : "터치 네비게이션 꺼짐";
   void narrator
     .announce(
-      { text: `터치 네비게이션 모드 ${enabled ? "켜짐" : "꺼짐"}`, kind: "group", level: 0 },
+      { text: message, kind: "group", level: 0 },
       { detail: "brief" },
     )
     .catch((error) => console.warn("[WebGil] 모드 안내 낭독 실패", error));
