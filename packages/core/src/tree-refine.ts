@@ -249,6 +249,7 @@ function slug(label: string): string {
 function bareCopy(node: DocNode): DocNode {
   const copy: DocNode = { id: node.id, kind: node.kind, level: 0, text: node.text, children: [] };
   if (node.handle !== undefined) copy.handle = node.handle;
+  if (node.table) copy.table = true;
   return copy;
 }
 

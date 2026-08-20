@@ -33,6 +33,11 @@ export interface DocNode {
   text: string;
   /** 원본 DOM 참조. 규칙 트리는 채우고, 폴백 트리(02)·group 버킷은 없을 수 있다. */
   handle?: NodeHandle;
+  /**
+   * HTML 표에서 추출된 노드인지 표시한다. 표의 같은 값(예: 여러 셀의 "1점")은
+   * 중복이 아니라 위치·헤더가 다른 정보이므로 일반 중복 제거·버킷 대상이 아니다.
+   */
+  table?: true;
   children: DocNode[];
 }
 

@@ -76,6 +76,20 @@ test("applyRefinePlan: children을 생략한 ref는 원본 하위 트리를 그�
   );
 });
 
+test("applyRefinePlan: 표 노드의 중복 보존 표시도 유지한다", () => {
+  const root: DocNode = {
+    id: "root",
+    kind: "group",
+    level: 0,
+    text: "(문서)",
+    children: [{ ...node("table", "group", "표: 신청 현황"), table: true }],
+  };
+  const result = applyRefinePlan(root, { root: [{ ref: "table" }] }, { minKeepRatio: 0 });
+
+  assert.equal(result.status, "refined");
+  assert.equal(result.tree.children[0].table, true);
+});
+
 test("applyRefinePlan: 원본 트리의 노드를 건드리지 않는다", () => {
   const root = tree();
   const before = JSON.stringify(root);
