@@ -79,7 +79,7 @@ test("같은 kind leaf가 많으면 하나의 그룹으로 묶어 개수를 줄�
   assert.ok(main.children.length < 12, "최상위 개수가 줄어든다");
 });
 
-test("빈 이름 링크·중복 leaf·빈 그룹을 정리한다", () => {
+test("빈 이름 링크·빈 그룹은 정리하고, 같은 이름의 조작 항목은 보존한다", () => {
   const root = tree(`
     <main>
       <a href="/x">홈</a>
@@ -92,8 +92,42 @@ test("빈 이름 링크·중복 leaf·빈 그룹을 정리한다", () => {
   const homes = [];
   const collect = (n: DocNode) => { if (n.text === "홈") homes.push(n); n.children.forEach(collect); };
   collect(main);
-  assert.equal(homes.length, 1, "중복 '홈' 링크는 하나만 남는다");
+  assert.equal(homes.length, 2, "서로 다른 위치의 '홈' 링크는 모두 남는다");
   assert.equal(find(root, "") ?? null, null, "빈 이름 노드는 없다");
+});
+
+test("div/span만으로 만든 본문도 한 번만 추출한다", () => {
+  const root = tree(`<main><div class="article"><span>의미 태그 없이 작성한 본문입니다.</span></div></main>`);
+  const main = root.children[0];
+  const texts = main.children.filter((node) => node.kind === "text");
+
+  assert.deepEqual(texts.map((node) => node.text), ["의미 태그 없이 작성한 본문입니다."]);
+});
+
+test("여러 div 본문은 하나의 거대 문장으로 합치지 않는다", () => {
+  const root = tree(`
+    <main><div class="layout"><div>첫 번째 안내입니다.</div><div>두 번째 안내입니다.</div></div></main>
+  `);
+  const texts = root.children[0].children.filter((node) => node.kind === "text");
+
+  assert.deepEqual(texts.map((node) => node.text), ["첫 번째 안내입니다.", "두 번째 안내입니다."]);
+});
+
+test("한 글자 본문과 ARIA 조작 요소를 생략하지 않는다", () => {
+  const root = tree(`
+    <main>
+      <p>A</p><p>7</p>
+      <button role="tab">개요</button>
+      <div role="switch" aria-label="알림"></div>
+      <div contenteditable="true" aria-label="메모"></div>
+    </main>
+  `);
+  const main = root.children[0];
+  const collect = (kind: DocNode["kind"]) => main.children.filter((node) => node.kind === kind);
+
+  assert.deepEqual(collect("text").map((node) => node.text), ["A", "7"]);
+  assert.deepEqual(collect("button").map((node) => node.text), ["개요", "알림"]);
+  assert.deepEqual(collect("input").map((node) => node.text), ["메모"]);
 });
 
 test("본문 문단이 헤딩 아래 텍스트 노드로 들어간다", () => {
@@ -121,6 +155,12 @@ test("문단 중간의 링크는 문장에 포함해 읽고, 링크 노드로도
     main.children.some((c) => c.kind === "link" && c.text === "문서"),
     "링크는 조작 가능한 노드로 따로 남는다",
   );
+});
+
+test("본문 안에서 숨겨진 자식 텍스트는 읽지 않는다", () => {
+  const root = tree(`<main><p>보이는 내용<span aria-hidden="true">숨겨진 내용</span>입니다.</p></main>`);
+
+  assert.equal(root.children[0].children[0].text, "보이는 내용입니다.");
 });
 
 test("링크만 든 목록 껍데기는 버리고 설명이 있는 항목은 남긴다", () => {

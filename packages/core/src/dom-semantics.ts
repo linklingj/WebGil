@@ -4,9 +4,12 @@
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6,[role=heading]";
 
 /** 사용자가 조작할 수 있는 요소. 자기 노드가 되므로 문단의 "문장 길이"에서는 제외한다. */
-const INTERACTIVE_SELECTOR =
+export const INTERACTIVE_SELECTOR =
   "a[href],button,[role=button],[role=link]," +
-  "input,textarea,select,[role=textbox],[role=combobox],[role=searchbox],[role=checkbox],[role=radio]";
+  "input,textarea,select,[contenteditable]:not([contenteditable=false])," +
+  "[role=textbox],[role=combobox],[role=searchbox],[role=checkbox],[role=radio]," +
+  "[role=tab],[role=menuitem],[role=menuitemcheckbox],[role=menuitemradio],[role=switch]," +
+  "[role=slider],[role=spinbutton],[role=option],[role=treeitem],[role=gridcell]";
 
 const LANDMARK_SELECTOR =
   "nav,main,header,footer,aside," +
@@ -17,6 +20,9 @@ const LANDMARK_SELECTOR =
  * 이게 없으면 문서 트리가 링크·버튼 목록이 되어 헤딩으로 내려가도 읽을 게 없다.
  */
 export const TEXT_BLOCK_SELECTOR = "p,li,dd,dt,blockquote,figcaption,td,pre";
+
+/** 의미 태그 없이 div/span으로만 작성한 본문을 보완하는 후보(구조 추출 전용). */
+export const GENERIC_TEXT_SELECTOR = "article,section,div,span";
 
 /** 구조 추출·AX 수집이 훑는 대상 — 헤딩·상호작용 요소·landmark·본문 블록·alt 이미지. */
 export const SIGNIFICANT_SELECTOR = [
@@ -59,6 +65,9 @@ export function roleOf(el: Element): string {
   const explicit = el.getAttribute("role");
   if (explicit) return explicit;
   const tag = el.tagName.toLowerCase();
+  if (el.getAttribute("contenteditable") !== null && el.getAttribute("contenteditable") !== "false") {
+    return "textbox";
+  }
   if (/^h[1-6]$/.test(tag)) return "heading";
   switch (tag) {
     case "a":
@@ -173,6 +182,8 @@ export function blockText(el: Element): BlockText {
       }
       if (child.nodeType !== 1 /* ELEMENT_NODE */) continue;
       const element = child as Element;
+      // 탭 패널의 비활성 내용 등, 접근성 트리에서 숨긴 하위 텍스트는 읽지 않는다.
+      if (isHidden(element)) continue;
       // 중첩 블록·헤딩은 별도 노드로 들어간다 — 여기서 읽으면 같은 문장이 두 번 나온다.
       if (element.matches(TEXT_BLOCK_SELECTOR) || element.matches(HEADING_SELECTOR)) continue;
       walk(element, insideInteractive || element.matches(INTERACTIVE_SELECTOR));

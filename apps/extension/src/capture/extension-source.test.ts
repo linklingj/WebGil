@@ -55,6 +55,19 @@ test("execute(input): 네이티브 setter로 값을 넣고 input 이벤트를 �
   assert.equal(fired, true);
 });
 
+test("execute(input): contenteditable 영역에도 값을 넣고 이벤트를 발생시킨다", async () => {
+  const dom = new JSDOM(`<!doctype html><body><div id="editor" contenteditable="true"></div></body>`);
+  const src = new ExtensionSource(dom.window.document as unknown as Document);
+  const field = src.getAXTree()[0];
+  const editor = dom.window.document.getElementById("editor")!;
+  let fired = false;
+  editor.addEventListener("input", () => (fired = true));
+
+  await src.execute({ type: "input", nodeId: field.id, value: "메모" });
+  assert.equal(editor.textContent, "메모");
+  assert.equal(fired, true);
+});
+
 test("execute: 알 수 없는 노드 id는 에러를 던진다", async () => {
   const src = setup(`<button>x</button>`);
   await assert.rejects(() => src.execute({ type: "click", nodeId: "없음" }));

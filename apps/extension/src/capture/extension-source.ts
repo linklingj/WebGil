@@ -135,6 +135,13 @@ export function setNativeValue(
   value: string,
   win: Window & typeof globalThis,
 ): void {
+  // contenteditable은 value 프로퍼티가 없는 편집 영역이므로 텍스트를 직접 갱신한다.
+  if (el.getAttribute("contenteditable") !== null && el.getAttribute("contenteditable") !== "false") {
+    el.textContent = value;
+    el.dispatchEvent(new win.Event("input", { bubbles: true }));
+    el.dispatchEvent(new win.Event("change", { bubbles: true }));
+    return;
+  }
   const proto =
     el instanceof win.HTMLTextAreaElement
       ? win.HTMLTextAreaElement.prototype

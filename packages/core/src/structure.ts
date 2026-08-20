@@ -5,6 +5,7 @@
 import {
   SIGNIFICANT_SELECTOR,
   TEXT_BLOCK_SELECTOR,
+  GENERIC_TEXT_SELECTOR,
   UI_ROOT_ATTR,
   blockText,
   ensureNodeId,
@@ -21,8 +22,10 @@ import type { DocNode, NodeKind } from "./tree.js"; // 03 문서 트리 스키�
 const GROUP_MIN = 6;
 /** 낭독·표시용 이름 최대 길이. 본문 블록은 잘리면 내용이 사라지므로 적용하지 않는다. */
 const MAX_NAME = 200;
-/** 본문 블록으로 인정할 최소 문장 길이. 이보다 짧으면 링크·아이콘 껍데기로 본다. */
-const MIN_PROSE = 2;
+/** 명시 본문 블록은 한 글자라도 정보일 수 있으므로 보존한다. */
+const MIN_PROSE = 1;
+/** div/span 폴백은 아이콘 노이즈를 막기 위해 두 글자 이상일 때만 본문으로 인정한다. */
+const MIN_GENERIC_PROSE = 2;
 
 const LANDMARK_ROLES = new Set([
   "navigation",
@@ -58,8 +61,10 @@ function kindOf(role: string): NodeKind | null {
   if (role === "heading") return "heading";
   if (role === "link") return "link";
   if (role === "button") return "button";
-  if (["textbox", "combobox", "searchbox", "checkbox", "radio"].includes(role))
+  if (["textbox", "combobox", "searchbox", "checkbox", "radio", "slider", "spinbutton", "option"].includes(role))
     return "input";
+  if (["tab", "menuitem", "menuitemcheckbox", "menuitemradio", "switch", "treeitem", "gridcell"].includes(role))
+    return "button";
   if (role === "image") return "text";
   if (LANDMARK_ROLES.has(role)) return "group";
   return null;
@@ -97,6 +102,22 @@ function bucketNode(text: string): DocNode {
   return { id: `g${groupSeq++}`, kind: "group", level: 0, text, children: [] };
 }
 
+/** 큰 레이아웃 컨테이너는 제외하고, 중첩 후보 중 가장 바깥 본문만 채택한다. */
+function isGenericTextBlock(el: Element): boolean {
+  if (!el.matches(GENERIC_TEXT_SELECTOR)) return false;
+  if (el.querySelector(SIGNIFICANT_SELECTOR)) return false;
+  // 카드·문단이 여러 개인 레이아웃 div까지 하나의 거대 문장으로 합치지 않는다.
+  const meaningfulGenericChildren = Array.from(el.children).filter(
+    (child) =>
+      child.matches(GENERIC_TEXT_SELECTOR) &&
+      !isHidden(child) &&
+      collapse(child.textContent ?? "").length >= MIN_GENERIC_PROSE,
+  );
+  if (meaningfulGenericChildren.length > 1) return false;
+  const parent = el.parentElement?.closest(GENERIC_TEXT_SELECTOR);
+  return !parent || !isGenericTextBlock(parent);
+}
+
 /**
  * 라이브 DOM(Document)을 규칙 기반으로 의미적 문서 트리로 변환한다.
  * 브라우저에선 실제 document, 벤치/테스트에선 jsdom Document를 넘긴다.
@@ -109,17 +130,19 @@ export function extractTree(doc: Document): DocNode {
   const stack: { node: DocNode; sl: number }[] = [{ node: root, sl: -1 }];
   const top = () => stack[stack.length - 1];
 
-  for (const el of doc.querySelectorAll<HTMLElement>(SIGNIFICANT_SELECTOR)) {
+  const candidates = `${SIGNIFICANT_SELECTOR},${GENERIC_TEXT_SELECTOR}`;
+  for (const el of doc.querySelectorAll<HTMLElement>(candidates)) {
     if (el.closest(`[${UI_ROOT_ATTR}]`)) continue;
     if (isHidden(el)) continue;
     const role = roleOf(el);
     const kind = kindOf(role);
     if (!kind) {
-      // 본문 블록(p·li·td…). 명시 role이 없을 때만 — `<li role=button>`은 위에서 버튼으로 잡힌다.
-      if (!el.matches(TEXT_BLOCK_SELECTOR)) continue;
+      // 명시 본문 블록 또는 의미 태그 없이 작성한 div/span 본문.
+      const generic = isGenericTextBlock(el);
+      if (!el.matches(TEXT_BLOCK_SELECTOR) && !generic) continue;
       const block = blockText(el);
       // 링크·버튼만 든 목록 껍데기는 버린다. 그 안의 링크는 자기 노드로 이미 들어온다.
-      if (block.proseLength < MIN_PROSE) continue;
+      if (block.proseLength < (generic ? MIN_GENERIC_PROSE : MIN_PROSE)) continue;
       top().node.children.push(leafNode(el, "text", block.text));
       continue;
     }
@@ -158,26 +181,12 @@ function prune(n: DocNode): void {
   for (const c of n.children) prune(c);
   // 빈 그룹(내용 없는 landmark) 제거.
   n.children = n.children.filter((c) => !(c.kind === "group" && c.children.length === 0));
-  dedupeLeaves(n);
   bucketByKind(n);
 }
 
-const LEAF_KINDS = new Set<NodeKind>(["link", "button", "input", "text"]);
 // 본문 문단은 묶지 않는다 — 한 단계 아래로 숨기면 헤딩에서 내려와도 읽을 게 없는 지금 문제가 그대로다.
 // ponytail: 그 대가로 alt 이미지가 많은 페이지는 한 레벨이 길어진다. 버킷 페이징(개선안 A-3) 때 재검토.
 const BUCKET_KINDS = new Set<NodeKind>(["link", "button", "input"]);
-
-/** 같은 부모 안 (kind, text)가 완전히 같은 leaf 중복 제거(첫 개만 유지). 반복 내비·중복 링크 정리. */
-function dedupeLeaves(n: DocNode): void {
-  const seen = new Set<string>();
-  n.children = n.children.filter((c) => {
-    if (!LEAF_KINDS.has(c.kind)) return true;
-    const key = `${c.kind} ${c.text}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
 
 /** 같은 부모 안 같은 kind leaf가 GROUP_MIN 이상이면 하나의 그룹으로 묶어 현재 레벨을 짧게 유지. */
 function bucketByKind(n: DocNode): void {
