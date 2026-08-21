@@ -49,6 +49,8 @@ export interface DocNode {
   handle?: NodeHandle;
   /** landmark group일 때만 원래의 접근성 영역 역할. 일반 노드·버킷에는 없다. */
   regionRole?: RegionRole;
+  /** 표 구조(표·행·셀)에 속한 노드. 표는 열 정렬이 의미라서 중복 제거·버킷 묶음에서 제외한다. */
+  table?: boolean;
   children: DocNode[];
 }
 
