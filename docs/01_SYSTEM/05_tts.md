@@ -37,6 +37,7 @@ interface VoiceOpts { voice?: string; rate?: number; pitch?: number; }
 
 - 코어에 `TTSEngine`·`VoiceOptions`·`VoicePreset`을 정의하고, `NarrationController`가 새 낭독 전 항상 `stop()`을 호출해 이전 낭독을 선점한다.
 - `formatNarration()`은 노드 텍스트에 종류·문서 **계층 깊이**·같은 레벨 순서를 붙여 "소개, 제목, 계층 2, 2번 항목, 전체 3개"처럼 읽는다. 간단 낭독 모드에서는 텍스트만 읽는다.
+- 실제 엔진에 보내기 직전 `normalizeKoreanNumberSpeech()`가 숫자 발음을 한자어 수사로 통일한다. 예를 들어 `7번 항목`은 `칠 번 항목`, `12,000원`은 `만 이천 원`으로 읽는다. 날짜·금액·퍼센트·소수와 전화번호·사업자번호 같은 하이픈 식별자를 처리하되 URL·이메일·버전 문자열은 변경하지 않는다. 화면 원문과 LLM 컨텍스트는 그대로 보존한다.
 - 확장 MVP 구현체는 `WebSpeechEngine`이다. Chrome/OS의 Web Speech API를 사용하고, 한국어 음성 중 `localService` 음성을 우선 선택한다. 별도 모델 설치는 필요 없지만, 로컬 음성이 없을 때의 시스템 음성은 OS 제공자에 따라 원격일 수 있으므로 **외부 전송이 없음을 보장하지 않는다**. 강한 로컬·프라이버시 보장은 Piper/Kokoro 등 별도 로컬 엔진에서 제공한다.
 - Chrome이 첫 `getVoices()` 호출에서 빈 목록을 줄 수 있으므로, 첫 낭독에만 최대 250ms 동안 `voiceschanged`를 기다린다. 그 뒤에도 목록이 비어 있으면 브라우저 기본 음성으로 폴백한다.
 - ElevenLabs API 엔진은 `ElevenLabsSpeechEngine`으로 연결한다. API 키와 Voice ID는 확장 프로그램 설정에서만 입력하며, `chrome.storage.local`을 신뢰된 확장 컨텍스트로 제한해 Content Script와 웹페이지가 키를 읽지 못하게 한다. API 요청은 Background Service Worker가 처리하고 Content Script에는 재생용 오디오만 전달한다.

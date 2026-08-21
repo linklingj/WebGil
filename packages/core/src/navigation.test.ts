@@ -3,8 +3,13 @@ import { test } from "node:test";
 import { NavigationEngine } from "./navigation.js";
 import type { DocNode } from "./tree.js";
 
-function node(id: string, text: string, children: DocNode[] = []): DocNode {
-  return { id, kind: "heading", level: 0, text, children };
+function node(
+  id: string,
+  text: string,
+  children: DocNode[] = [],
+  regionRole?: DocNode["regionRole"],
+): DocNode {
+  return { id, kind: "heading", level: 0, text, children, regionRole };
 }
 
 function sampleTree(): DocNode {
@@ -29,6 +34,31 @@ test("초기 위치에서 같은 레벨을 순회하고 경계에서는 멈춘�
 
   assert.equal(nav.previous().node?.id, "intro");
   assert.equal(nav.previous().status, "boundary");
+});
+
+test("semantic main이 있으면 본문의 첫 항목에서 시작하고 reset도 그 위치로 돌아간다", () => {
+  const root = node("root", "(문서)", [
+    node("nav", "탐색", [node("nav-home", "홈")], "navigation"),
+    node("main", "본문", [node("title", "서비스 소개"), node("body", "본문 내용")], "main"),
+    node("footer", "바닥글", [node("terms", "이용 약관")], "contentinfo"),
+  ]);
+  const nav = new NavigationEngine(root);
+
+  assert.equal(nav.current?.id, "title", "사용자는 메뉴가 아니라 본문 첫 항목을 먼저 만난다");
+  assert.equal(nav.next().node?.id, "body");
+  assert.equal(nav.back().node?.id, "main", "본문 영역으로 돌아가 다른 최상위 영역도 탐색할 수 있다");
+  assert.equal(nav.reset().node?.id, "title");
+});
+
+test("LLM 재구성이 main을 그룹으로 감싸도 본문의 첫 항목에서 시작한다", () => {
+  const root = node("root", "(문서)", [
+    node("page-content", "페이지 내용", [
+      node("main", "본문", [node("title", "서비스 소개")], "main"),
+    ]),
+    node("nav", "탐색", [node("nav-home", "홈")], "navigation"),
+  ]);
+
+  assert.equal(new NavigationEngine(root).current?.id, "title");
 });
 
 test("enter와 back은 자식의 첫 노드와 부모 노드 사이를 이동한다", () => {
