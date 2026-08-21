@@ -4,7 +4,7 @@
 const HEADING_SELECTOR = "h1,h2,h3,h4,h5,h6,[role=heading]";
 
 /** 사용자가 조작할 수 있는 요소. 자기 노드가 되므로 문단의 "문장 길이"에서는 제외한다. */
-const INTERACTIVE_SELECTOR =
+export const INTERACTIVE_SELECTOR =
   "a[href],button,[role=button],[role=link]," +
   "input,textarea,select,[role=textbox],[role=combobox],[role=searchbox],[role=checkbox],[role=radio]";
 
@@ -24,6 +24,7 @@ export const SIGNIFICANT_SELECTOR = [
   INTERACTIVE_SELECTOR,
   LANDMARK_SELECTOR,
   TEXT_BLOCK_SELECTOR,
+  "table",
   "img[alt]",
 ].join(",");
 
