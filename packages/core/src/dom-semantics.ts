@@ -30,6 +30,7 @@ export const SIGNIFICANT_SELECTOR = [
   INTERACTIVE_SELECTOR,
   LANDMARK_SELECTOR,
   TEXT_BLOCK_SELECTOR,
+  "table",
   "img[alt]",
 ].join(",");
 

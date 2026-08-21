@@ -1,5 +1,6 @@
 // 네비게이션·LLM 등이 지목한 노드를 짧고 일관된 낭독 문구로 바꾼다.
 import type { TTSEngine, VoiceOptions } from "./tts.js";
+import { normalizeKoreanNumberSpeech } from "./korean-number.js";
 
 /** 문서 트리와 느슨하게 결합된 낭독 대상. 폴백 트리도 같은 형태로 읽을 수 있다. */
 export interface NarrationTarget {
@@ -55,7 +56,8 @@ export class NarrationController {
     const requestId = ++this.requestId;
     this.tts.stop();
     try {
-      await this.tts.speak(formatNarration(target, context), options);
+      // 원문 트리는 그대로 보존하고, 실제 음성으로 나가는 문구에만 발음 정규화를 적용한다.
+      await this.tts.speak(normalizeKoreanNumberSpeech(formatNarration(target, context)), options);
     } catch (error) {
       // stop() 이후 늦게 도착한 취소 오류는 새 낭독을 방해하지 않는다.
       if (requestId !== this.requestId) return;

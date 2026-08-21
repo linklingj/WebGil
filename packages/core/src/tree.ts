@@ -13,6 +13,20 @@ import type { NodeId, NodeHandle } from "./capture-source.js";
 export type NodeKind = "heading" | "text" | "link" | "button" | "input" | "group";
 
 /**
+ * landmark group이 나타내는 페이지 영역. `main`은 기본 낭독 시작점을 고르는 데 쓴다.
+ * 이 값은 DOM의 원래 의미를 보존할 뿐, 화면 요소를 삭제하거나 바꾸지는 않는다.
+ */
+export type RegionRole =
+  | "navigation"
+  | "main"
+  | "banner"
+  | "contentinfo"
+  | "complementary"
+  | "region"
+  | "search"
+  | "form";
+
+/**
  * 정규화된 문서 트리의 노드.
  *
  * 설계 결정(docs/03 미결정 항목 해소):
@@ -33,6 +47,10 @@ export interface DocNode {
   text: string;
   /** 원본 DOM 참조. 규칙 트리는 채우고, 폴백 트리(02)·group 버킷은 없을 수 있다. */
   handle?: NodeHandle;
+  /** landmark group일 때만 원래의 접근성 영역 역할. 일반 노드·버킷에는 없다. */
+  regionRole?: RegionRole;
+  /** 표 구조(표·행·셀)에 속한 노드. 표는 열 정렬이 의미라서 중복 제거·버킷 묶음에서 제외한다. */
+  table?: boolean;
   children: DocNode[];
 }
 

@@ -44,14 +44,15 @@ test("leaf는 가장 가까운 열린 섹션(헤딩)에 붙는다 + handle 보�
   assert.ok(link.handle, "규칙 경로는 원본 Element handle을 보존한다");
 });
 
-test("landmark는 최상위 영역 그룹이 되고 이후 콘텐츠를 담는다", () => {
+test("본문 landmark를 첫 최상위 영역으로 두고 이후 콘텐츠를 담는다", () => {
   const root = tree(`
     <nav><a href="/a">메뉴A</a></nav>
     <main><h2>본문 제목</h2></main>
   `);
   const groups = root.children.filter((c) => c.kind === "group");
-  assert.deepEqual(groups.map((g) => g.text), ["탐색", "본문"], "명시 라벨 없으면 role 라벨");
-  const main = groups[1];
+  assert.deepEqual(groups.map((g) => g.text), ["본문", "탐색"], "본문을 chrome보다 먼저 둔다");
+  const main = groups[0];
+  assert.equal(main.regionRole, "main", "원래 landmark 역할도 보존한다");
   assert.equal(main.children[0].text, "본문 제목", "main이 이후 헤딩을 담는다");
 });
 
@@ -204,6 +205,58 @@ test("본문 문단은 그룹 버킷으로 묶지 않는다", () => {
 
   assert.equal(main.children.filter((c) => c.kind === "text").length, 12);
   assert.equal(main.children.some((c) => c.kind === "group"), false, "문단은 버킷에 숨지 않는다");
+});
+
+test("표의 반복 셀은 빠짐없이 남고 행·열 헤더와 함께 읽는다", () => {
+  const root = tree(`
+    <main>
+      <table>
+        <caption>공모전 상금 안내</caption>
+        <thead>
+          <tr><th scope="col">과제</th><th scope="colgroup" colspan="2">상점</th></tr>
+          <tr><th scope="col">구분</th><th scope="col">학생</th><th scope="col">일반</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row" rowspan="2">자유과제</th><td>1점</td><td>1점</td></tr>
+          <tr><td>1점</td><td>1점</td></tr>
+        </tbody>
+      </table>
+    </main>
+  `);
+  const table = find(root, "표: 공모전 상금 안내")!;
+  const cells: DocNode[] = [];
+  const collect = (node: DocNode) => {
+    if (node.table && node.kind === "text") cells.push(node);
+    node.children.forEach(collect);
+  };
+  collect(table);
+
+  assert.equal(table.table, true, "표는 전용 구조로 표시한다");
+  assert.equal(cells.filter((cell) => cell.text.endsWith("1점")).length, 4, "반복된 1점도 모두 보존한다");
+  assert.ok(cells.some((cell) => cell.text === "자유과제, 상점, 학생: 1점"));
+  assert.ok(cells.some((cell) => cell.text === "자유과제, 상점, 일반: 1점"));
+  assert.ok(cells.every((cell) => cell.handle), "표 셀도 하이라이트할 원본 handle을 보존한다");
+});
+
+test("표의 빈 셀과 셀 안 조작 항목도 생략하지 않는다", () => {
+  const root = tree(`
+    <main>
+      <table aria-label="신청 현황">
+        <tr><th scope="col">상태</th><th scope="col">상세</th></tr>
+        <tr><td></td><td><a href="/detail">자세히 보기</a></td></tr>
+      </table>
+    </main>
+  `);
+  const table = find(root, "표: 신청 현황")!;
+  const dataRow = table.children[1];
+  const blank = dataRow.children[0];
+  const detail = dataRow.children[1];
+
+  assert.equal(blank.text, "상태: 비어 있음");
+  assert.equal(detail.text, "상세: 자세히 보기");
+  assert.equal(detail.children[0].kind, "link");
+  assert.equal(detail.children[0].text, "자세히 보기");
+  assert.ok(detail.children[0].handle, "표 안 링크도 실행할 원본 handle을 보존한다");
 });
 
 test("treeStats: 총계·최상위·깊이를 센다", () => {

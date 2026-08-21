@@ -6,6 +6,7 @@ import {
   SIGNIFICANT_SELECTOR,
   TEXT_BLOCK_SELECTOR,
   GENERIC_TEXT_SELECTOR,
+  INTERACTIVE_SELECTOR,
   UI_ROOT_ATTR,
   blockText,
   ensureNodeId,
@@ -15,7 +16,7 @@ import {
   collapse,
   isHidden,
 } from "./dom-semantics.js";
-import type { DocNode, NodeKind } from "./tree.js"; // 03 문서 트리 스키마
+import type { DocNode, NodeKind, RegionRole } from "./tree.js"; // 03 문서 트리 스키마
 
 // --- 규칙 상수 (실사이트 튜닝 노브) ---
 /** 한 부모 안에서 같은 kind의 leaf가 이 수 이상이면 하나의 그룹으로 묶는다. */
@@ -48,6 +49,17 @@ const REGION_LABEL: Record<string, string> = {
   search: "검색",
   form: "양식",
 };
+
+const REGION_ROLES = new Set<RegionRole>([
+  "navigation",
+  "main",
+  "banner",
+  "contentinfo",
+  "complementary",
+  "region",
+  "search",
+  "form",
+]);
 
 const KIND_LABEL: Record<string, string> = {
   link: "링크",
@@ -94,8 +106,13 @@ function regionName(el: Element): string {
   return el.getAttribute("title")?.trim() ?? "";
 }
 
-function leafNode(el: Element, kind: NodeKind, text: string): DocNode {
-  return { id: ensureNodeId(el), kind, level: 0, text, handle: el, children: [] };
+function leafNode(
+  el: Element,
+  kind: NodeKind,
+  text: string,
+  regionRole?: RegionRole,
+): DocNode {
+  return { id: ensureNodeId(el), kind, level: 0, text, handle: el, regionRole, children: [] };
 }
 
 function bucketNode(text: string): DocNode {
@@ -118,6 +135,189 @@ function isGenericTextBlock(el: Element): boolean {
   return !parent || !isGenericTextBlock(parent);
 }
 
+interface TableCell {
+  el: HTMLTableCellElement;
+  row: number;
+  column: number;
+  rowSpan: number;
+  colSpan: number;
+  header: boolean;
+}
+
+/** 표의 caption·ARIA 이름을 우선해 낭독 가능한 표 이름을 만든다. */
+function tableName(table: HTMLTableElement): string {
+  const labelled = table.getAttribute("aria-labelledby");
+  if (labelled) {
+    const text = labelled
+      .split(/\s+/)
+      .map((id) => table.ownerDocument.getElementById(id)?.textContent ?? "")
+      .join(" ")
+      .trim();
+    if (text) return collapse(text);
+  }
+  return (
+    table.getAttribute("aria-label")?.trim() ||
+    collapse(table.caption?.textContent ?? "") ||
+    table.getAttribute("title")?.trim() ||
+    "표"
+  );
+}
+
+function overlaps(startA: number, spanA: number, startB: number, spanB: number): boolean {
+  return startA < startB + spanB && startB < startA + spanA;
+}
+
+/**
+ * 실제 셀을 논리 격자에 배치한다. rowspan/colspan으로 채워진 자리는 다음 셀의
+ * 시작 열 계산과 헤더 연결에만 쓰고, 낭독 노드는 실제 DOM 셀마다 하나씩 만든다.
+ */
+function collectTableCells(table: HTMLTableElement): TableCell[][] {
+  const occupied = new Map<number, Set<number>>();
+  const rows: TableCell[][] = [];
+
+  Array.from(table.rows).forEach((row, rowIndex) => {
+    const cells: TableCell[] = [];
+    let column = 0;
+    for (const el of Array.from(row.cells)) {
+      const used = occupied.get(rowIndex) ?? new Set<number>();
+      occupied.set(rowIndex, used);
+      while (used.has(column)) column++;
+
+      const cell: TableCell = {
+        el,
+        row: rowIndex,
+        column,
+        rowSpan: Math.max(1, el.rowSpan || 1),
+        colSpan: Math.max(1, el.colSpan || 1),
+        header: el.tagName.toLowerCase() === "th",
+      };
+      cells.push(cell);
+
+      for (let r = rowIndex; r < rowIndex + cell.rowSpan; r++) {
+        const usedColumns = occupied.get(r) ?? new Set<number>();
+        occupied.set(r, usedColumns);
+        for (let c = column; c < column + cell.colSpan; c++) usedColumns.add(c);
+      }
+      column += cell.colSpan;
+    }
+    rows.push(cells);
+  });
+
+  return rows;
+}
+
+/** scope 또는 위치로 데이터 셀에 적용되는 행/열 헤더를 찾는다. */
+function headersFor(cell: TableCell, allCells: TableCell[]): string[] {
+  const explicit = cell.el.getAttribute("headers")?.trim();
+  if (explicit) {
+    const byId = new Map(allCells.map((candidate) => [candidate.el.id, candidate]));
+    return explicit
+      .split(/\s+/)
+      .map((id) => byId.get(id))
+      .filter((candidate): candidate is TableCell => candidate !== undefined)
+      .map((candidate) => collapse(candidate.el.textContent ?? ""))
+      .filter(Boolean);
+  }
+
+  const rowHeaders: string[] = [];
+  const columnHeaders: string[] = [];
+  for (const candidate of allCells) {
+    if (!candidate.header || candidate === cell) continue;
+    const text = collapse(candidate.el.textContent ?? "");
+    if (!text) continue;
+
+    const scope = candidate.el.getAttribute("scope")?.toLowerCase();
+    const sameLogicalRow = overlaps(candidate.row, candidate.rowSpan, cell.row, cell.rowSpan);
+    const sameLogicalColumn = overlaps(candidate.column, candidate.colSpan, cell.column, cell.colSpan);
+    const isLeft = candidate.column + candidate.colSpan <= cell.column;
+    const isAbove = candidate.row + candidate.rowSpan <= cell.row;
+
+    const appliesToRow =
+      (scope === "row" || scope === "rowgroup")
+        ? sameLogicalRow && isLeft
+        : !scope && sameLogicalRow && isLeft;
+    const appliesToColumn =
+      (scope === "col" || scope === "colgroup")
+        ? isAbove && sameLogicalColumn
+        : !scope && isAbove && sameLogicalColumn;
+
+    if (appliesToRow) rowHeaders.push(text);
+    if (appliesToColumn) columnHeaders.push(text);
+  }
+  return [...new Set([...rowHeaders, ...columnHeaders])];
+}
+
+/** 표 셀 안의 링크·버튼·입력칸도 셀의 하위 조작 항목으로 보존한다. */
+function tableInteractiveChildren(cell: HTMLTableCellElement): DocNode[] {
+  const children: DocNode[] = [];
+  for (const el of cell.querySelectorAll<HTMLElement>(INTERACTIVE_SELECTOR)) {
+    if (isHidden(el)) continue;
+    const kind = kindOf(roleOf(el));
+    if (!kind || kind === "group" || kind === "heading" || kind === "text") continue;
+    const name = clip(accessibleName(el));
+    if (!name && kind !== "input") continue;
+    children.push({
+      id: ensureNodeId(el),
+      kind,
+      level: 0,
+      text: name,
+      handle: el,
+      table: true,
+      children: [],
+    });
+  }
+  return children;
+}
+
+/**
+ * 의미 있는 HTML 표를 표 → 행 → 셀 트리로 변환한다.
+ * 일반 leaf와 달리 표 셀은 같은 값이라도 모두 보존하고, 데이터 셀에는 헤더를 붙인다.
+ */
+function extractTable(table: HTMLTableElement): DocNode | null {
+  const rows = collectTableCells(table);
+  const allCells = rows.flat();
+  if (allCells.length === 0) return null;
+
+  const tableNode: DocNode = {
+    id: ensureNodeId(table),
+    kind: "group",
+    level: 0,
+    text: `표: ${tableName(table)}`,
+    handle: table,
+    table: true,
+    children: [],
+  };
+
+  rows.forEach((cells, rowIndex) => {
+    if (cells.length === 0) return;
+    const rowNode: DocNode = {
+      id: `${tableNode.id}-row-${rowIndex + 1}`,
+      kind: "group",
+      level: 0,
+      text: `${rowIndex + 1}행`,
+      table: true,
+      children: [],
+    };
+    for (const cell of cells) {
+      // 빈 셀도 표의 열 정렬을 이해하는 데 필요한 정보라 생략하지 않는다.
+      const value = accessibleName(cell.el) || "비어 있음";
+      const headers = cell.header ? [] : headersFor(cell, allCells);
+      rowNode.children.push({
+        id: ensureNodeId(cell.el),
+        kind: "text",
+        level: 0,
+        text: headers.length ? `${headers.join(", ")}: ${value}` : value,
+        handle: cell.el,
+        table: true,
+        children: tableInteractiveChildren(cell.el),
+      });
+    }
+    if (rowNode.children.length) tableNode.children.push(rowNode);
+  });
+
+  return tableNode.children.length ? tableNode : null;
+}
+
 /**
  * 라이브 DOM(Document)을 규칙 기반으로 의미적 문서 트리로 변환한다.
  * 브라우저에선 실제 document, 벤치/테스트에선 jsdom Document를 넘긴다.
@@ -134,6 +334,15 @@ export function extractTree(doc: Document): DocNode {
   for (const el of doc.querySelectorAll<HTMLElement>(candidates)) {
     if (el.closest(`[${UI_ROOT_ATTR}]`)) continue;
     if (isHidden(el)) continue;
+
+    if (el.tagName.toLowerCase() === "table") {
+      const table = extractTable(el as HTMLTableElement);
+      if (table) top().node.children.push(table);
+      continue;
+    }
+    // 표 셀은 table 전용 경로에서 행·열 헤더와 함께 처리한다.
+    if (el.closest("table")) continue;
+
     const role = roleOf(el);
     const kind = kindOf(role);
     if (!kind) {
@@ -149,7 +358,13 @@ export function extractTree(doc: Document): DocNode {
 
     if (kind === "group") {
       // landmark: 페이지 최상위 영역. root 아래에 붙이고 이후 콘텐츠의 열린 섹션으로 리셋.
-      const g = leafNode(el, "group", clip(regionName(el)) || REGION_LABEL[role] || "영역");
+      const regionRole = REGION_ROLES.has(role as RegionRole) ? (role as RegionRole) : undefined;
+      const g = leafNode(
+        el,
+        "group",
+        clip(regionName(el)) || REGION_LABEL[role] || "영역",
+        regionRole,
+      );
       root.children.push(g);
       stack.length = 1;
       stack.push({ node: g, sl: 0.5 });
@@ -171,8 +386,20 @@ export function extractTree(doc: Document): DocNode {
   }
 
   prune(root);
+  prioritizePrimaryContent(root);
   assignDepth(root, 0);
   return root;
+}
+
+/**
+ * 페이지 상단 chrome이 DOM 앞에 놓이는 것은 정상이나, 낭독의 시작점으로는 좋지 않다.
+ * semantic `main` 영역만 안정적으로 판별할 수 있으므로 그것을 첫 최상위 항목으로 옮긴다.
+ * 나머지 영역은 DOM 순서와 내용을 그대로 보존한다.
+ */
+function prioritizePrimaryContent(root: DocNode): void {
+  const mainGroups = root.children.filter((node) => node.regionRole === "main");
+  if (mainGroups.length === 0) return;
+  root.children = [...mainGroups, ...root.children.filter((node) => node.regionRole !== "main")];
 }
 
 // --- 정리: "적당한 개수" 유지 ---
@@ -190,6 +417,7 @@ const BUCKET_KINDS = new Set<NodeKind>(["link", "button", "input"]);
 
 /** 같은 부모 안 같은 kind leaf가 GROUP_MIN 이상이면 하나의 그룹으로 묶어 현재 레벨을 짧게 유지. */
 function bucketByKind(n: DocNode): void {
+  if (n.table) return;
   const counts: Record<string, number> = {};
   for (const c of n.children) if (BUCKET_KINDS.has(c.kind)) counts[c.kind] = (counts[c.kind] ?? 0) + 1;
   const grouped = new Set(Object.keys(counts).filter((k) => counts[k] >= GROUP_MIN));

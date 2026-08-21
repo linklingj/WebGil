@@ -17,11 +17,14 @@ function tree(): DocNode {
     text: "(문서)",
     children: [
       node("nav", "group", "탐색", [node("nav-home", "link", "홈"), node("nav-ad", "link", "광고")]),
-      node("main", "group", "본문", [
-        node("h-price", "heading", "가격"),
-        node("p-price", "text", "월 9,900원부터 시작합니다."),
-        node("btn-buy", "button", "구매하기"),
-      ]),
+      {
+        ...node("main", "group", "본문", [
+          node("h-price", "heading", "가격"),
+          node("p-price", "text", "월 9,900원부터 시작합니다."),
+          node("btn-buy", "button", "구매하기"),
+        ]),
+        regionRole: "main",
+      },
     ],
   };
 }
@@ -74,6 +77,21 @@ test("applyRefinePlan: children을 생략한 ref는 원본 하위 트리를 그�
     result.tree.children[0].children.map((c) => c.id),
     ["h-price", "p-price", "btn-buy"],
   );
+  assert.equal(result.tree.children[0].regionRole, "main", "landmark 의미도 보존한다");
+});
+
+test("applyRefinePlan: 표 노드의 중복 보존 표시도 유지한다", () => {
+  const root: DocNode = {
+    id: "root",
+    kind: "group",
+    level: 0,
+    text: "(문서)",
+    children: [{ ...node("table", "group", "표: 신청 현황"), table: true }],
+  };
+  const result = applyRefinePlan(root, { root: [{ ref: "table" }] }, { minKeepRatio: 0 });
+
+  assert.equal(result.status, "refined");
+  assert.equal(result.tree.children[0].table, true);
 });
 
 test("applyRefinePlan: 원본 트리의 노드를 건드리지 않는다", () => {
