@@ -14,7 +14,7 @@ import {
   collapse,
   isHidden,
 } from "./dom-semantics.js";
-import type { DocNode, NodeKind } from "./tree.js"; // 03 문서 트리 스키마
+import type { DocNode, NodeKind, RegionRole } from "./tree.js"; // 03 문서 트리 스키마
 
 // --- 규칙 상수 (실사이트 튜닝 노브) ---
 /** 한 부모 안에서 같은 kind의 leaf가 이 수 이상이면 하나의 그룹으로 묶는다. */
@@ -45,6 +45,17 @@ const REGION_LABEL: Record<string, string> = {
   search: "검색",
   form: "양식",
 };
+
+const REGION_ROLES = new Set<RegionRole>([
+  "navigation",
+  "main",
+  "banner",
+  "contentinfo",
+  "complementary",
+  "region",
+  "search",
+  "form",
+]);
 
 const KIND_LABEL: Record<string, string> = {
   link: "링크",
@@ -89,8 +100,13 @@ function regionName(el: Element): string {
   return el.getAttribute("title")?.trim() ?? "";
 }
 
-function leafNode(el: Element, kind: NodeKind, text: string): DocNode {
-  return { id: ensureNodeId(el), kind, level: 0, text, handle: el, children: [] };
+function leafNode(
+  el: Element,
+  kind: NodeKind,
+  text: string,
+  regionRole?: RegionRole,
+): DocNode {
+  return { id: ensureNodeId(el), kind, level: 0, text, handle: el, regionRole, children: [] };
 }
 
 function bucketNode(text: string): DocNode {
@@ -126,7 +142,13 @@ export function extractTree(doc: Document): DocNode {
 
     if (kind === "group") {
       // landmark: 페이지 최상위 영역. root 아래에 붙이고 이후 콘텐츠의 열린 섹션으로 리셋.
-      const g = leafNode(el, "group", clip(regionName(el)) || REGION_LABEL[role] || "영역");
+      const regionRole = REGION_ROLES.has(role as RegionRole) ? (role as RegionRole) : undefined;
+      const g = leafNode(
+        el,
+        "group",
+        clip(regionName(el)) || REGION_LABEL[role] || "영역",
+        regionRole,
+      );
       root.children.push(g);
       stack.length = 1;
       stack.push({ node: g, sl: 0.5 });
@@ -148,8 +170,20 @@ export function extractTree(doc: Document): DocNode {
   }
 
   prune(root);
+  prioritizePrimaryContent(root);
   assignDepth(root, 0);
   return root;
+}
+
+/**
+ * 페이지 상단 chrome이 DOM 앞에 놓이는 것은 정상이나, 낭독의 시작점으로는 좋지 않다.
+ * semantic `main` 영역만 안정적으로 판별할 수 있으므로 그것을 첫 최상위 항목으로 옮긴다.
+ * 나머지 영역은 DOM 순서와 내용을 그대로 보존한다.
+ */
+function prioritizePrimaryContent(root: DocNode): void {
+  const mainGroups = root.children.filter((node) => node.regionRole === "main");
+  if (mainGroups.length === 0) return;
+  root.children = [...mainGroups, ...root.children.filter((node) => node.regionRole !== "main")];
 }
 
 // --- 정리: "적당한 개수" 유지 ---

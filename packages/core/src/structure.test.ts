@@ -44,14 +44,15 @@ test("leaf는 가장 가까운 열린 섹션(헤딩)에 붙는다 + handle 보�
   assert.ok(link.handle, "규칙 경로는 원본 Element handle을 보존한다");
 });
 
-test("landmark는 최상위 영역 그룹이 되고 이후 콘텐츠를 담는다", () => {
+test("본문 landmark를 첫 최상위 영역으로 두고 이후 콘텐츠를 담는다", () => {
   const root = tree(`
     <nav><a href="/a">메뉴A</a></nav>
     <main><h2>본문 제목</h2></main>
   `);
   const groups = root.children.filter((c) => c.kind === "group");
-  assert.deepEqual(groups.map((g) => g.text), ["탐색", "본문"], "명시 라벨 없으면 role 라벨");
-  const main = groups[1];
+  assert.deepEqual(groups.map((g) => g.text), ["본문", "탐색"], "본문을 chrome보다 먼저 둔다");
+  const main = groups[0];
+  assert.equal(main.regionRole, "main", "원래 landmark 역할도 보존한다");
   assert.equal(main.children[0].text, "본문 제목", "main이 이후 헤딩을 담는다");
 });
 
