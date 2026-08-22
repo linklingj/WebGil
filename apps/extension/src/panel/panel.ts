@@ -42,6 +42,7 @@ const searchBox = new SearchBox(required<HTMLElement>("#searchBar"), {
     setStatus("명령을 해석하는 중…");
     void send({ type: "ask", input });
   },
+  onDismiss: () => viewport.focus(),
 });
 
 renderHelp(helpDialog);

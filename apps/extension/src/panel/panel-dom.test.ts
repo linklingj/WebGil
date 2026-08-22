@@ -80,7 +80,11 @@ test("검색창: 일치 결과는 목록으로, ?로 시작하면 자연어 명�
     const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;
     const picked: string[] = [];
     const asked: string[] = [];
-    const search = new SearchBox(header, { onSelect: (id) => picked.push(id), onAsk: (text) => asked.push(text) });
+    const search = new SearchBox(header, {
+      onSelect: (id) => picked.push(id),
+      onAsk: (text) => asked.push(text),
+      onDismiss: () => {},
+    });
     search.setTree(tree);
 
     const input = header.querySelector<HTMLInputElement>("#search")!;
@@ -97,5 +101,25 @@ test("검색창: 일치 결과는 목록으로, ?로 시작하면 자연어 명�
     input.dispatchEvent(new dom.window.Event("input"));
     input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     assert.deepEqual(asked, ["로그인 눌러줘"], "?는 떼고 명령으로 넘긴다");
+  });
+});
+
+test("검색창: Esc는 검색어를 비우고 트리 조작으로 돌려보낸다", () => {
+  withPanel((dom) => {
+    const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;
+    const viewport = dom.window.document.querySelector<HTMLElement>("#viewport")!;
+    const search = new SearchBox(header, { onSelect: () => {}, onAsk: () => {}, onDismiss: () => viewport.focus() });
+    search.setTree(tree);
+
+    const input = header.querySelector<HTMLInputElement>("#search")!;
+    search.focus();
+    input.value = "공지";
+    input.dispatchEvent(new dom.window.Event("input"));
+    assert.equal(header.querySelector("#searchResults")?.hasAttribute("hidden"), false, "결과가 펼쳐진 상태");
+
+    input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    assert.equal(input.value, "", "검색어가 비워진다");
+    assert.equal(header.querySelector("#searchResults")?.hasAttribute("hidden"), true, "결과 목록이 접힌다");
+    assert.equal(dom.window.document.activeElement, viewport, "포커스가 트리로 돌아간다");
   });
 });

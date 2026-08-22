@@ -9,6 +9,8 @@ export interface SearchOptions {
   onSelect(id: string): void;
   /** 자연어 명령 실행. 결과 메시지를 상태 줄에 띄운다. */
   onAsk(input: string): void;
+  /** Esc — 검색을 접고 트리 조작으로 돌아간다. */
+  onDismiss(): void;
 }
 
 export class SearchBox {
@@ -82,8 +84,11 @@ export class SearchBox {
 
   private onKeyDown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
+      // 검색어를 지우고 포커스를 트리로 넘긴다 — Esc 한 번으로 다시 방향키 탐색이 된다.
+      event.preventDefault();
       this.input.value = "";
       this.update();
+      this.options.onDismiss();
       return;
     }
     if (event.key === "Enter") {
