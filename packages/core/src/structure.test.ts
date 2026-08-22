@@ -266,3 +266,45 @@ test("treeStats: 총계·최상위·깊이를 센다", () => {
   assert.ok(s.total >= 3);
   assert.ok(s.maxDepth >= 3, "A>B>C 깊이");
 });
+
+test("버튼 안의 글은 형제가 아니라 버튼 자신의 내용이다", () => {
+  const root = tree(`
+    <h2>안내</h2>
+    <button type="button"><div class="label">대회 운영 규정</div></button>
+  `);
+  const section = find(root, "안내")!;
+  const button = section.children.find((c) => c.kind === "button")!;
+
+  assert.equal(button.text, "대회 운영 규정");
+  assert.equal(
+    section.children.filter((c) => c.kind === "text").length,
+    0,
+    "버튼 옆에 같은 글이 또 놓이지 않는다",
+  );
+  assert.equal(button.children.length, 0, "라벨을 되풀이하는 한 덩어리는 자식으로도 두지 않는다");
+});
+
+test("여러 덩어리를 품은 링크는 그 덩어리들을 자식으로 가진다", () => {
+  const root = tree(`
+    <h2>안내</h2>
+    <a href="/rules">
+      <h3>대회 운영 규정</h3>
+      <p>참가 자격과 심사 기준을 안내합니다.</p>
+    </a>
+    <p>문의는 메일로 받습니다.</p>
+  `);
+  const section = find(root, "안내")!;
+  const link = section.children.find((c) => c.kind === "link")!;
+
+  assert.deepEqual(
+    link.children.map((c) => c.text),
+    ["대회 운영 규정", "참가 자격과 심사 기준을 안내합니다."],
+    "제목과 설명이 링크 아래로 들어간다",
+  );
+  assert.equal(find(section, "문의는 메일로 받습니다.")!.level, link.level, "링크 밖 본문은 그대로 형제");
+  assert.equal(
+    link.children.some((c) => c.text === "문의는 메일로 받습니다."),
+    false,
+    "링크 안 헤딩이 섹션을 열어 뒷 내용을 빨아들이지 않는다",
+  );
+});
