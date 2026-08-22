@@ -39,8 +39,15 @@ export interface PanelReply {
 
 export const PANEL_COMMAND = "webgil.panel.command";
 export const PANEL_STATE = "webgil.panel.state";
-/** background가 "설정 창을 열어라"를 남기는 자리. storage.session은 신뢰된 컨텍스트 전용. */
+/** background가 "이 화면을 띄워라"를 남기는 자리. storage.session은 신뢰된 컨텍스트 전용. */
 export const PANEL_VIEW_KEY = "webgil.panel.view";
+
+/** 툴바 아이콘·브라우저 단축키가 패널에 보낼 수 있는 요청. */
+export type PanelView = "settings" | "help" | "search";
+
+export function isPanelView(value: unknown): value is PanelView {
+  return value === "settings" || value === "help" || value === "search";
+}
 
 export function isPanelCommandMessage(value: unknown): value is { type: typeof PANEL_COMMAND; command: PanelCommand } {
   return isRecord(value) && value.type === PANEL_COMMAND && isRecord(value.command) && typeof value.command.type === "string";

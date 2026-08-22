@@ -74,8 +74,14 @@ declare const chrome: {
       addListener(listener: (tab: ChromeTab) => void): void;
     };
   };
+  commands: {
+    /** manifest의 commands에 등록한 브라우저 단축키. 포커스가 페이지에 있어도 여기로 온다. */
+    onCommand: {
+      addListener(listener: (command: string, tab?: ChromeTab) => void): void;
+    };
+  };
   sidePanel: {
     /** 사용자 제스처 안에서만 호출된다. windowId를 주면 그 창의 패널을 연다. */
-    open(options: { windowId: number } | { tabId: number }): Promise<void>;
+    open(options: { windowId?: number; tabId?: number }): Promise<void>;
   };
 };

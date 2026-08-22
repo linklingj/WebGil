@@ -17,6 +17,20 @@
   "side_panel": {
     "default_path": "panel/panel.html"
   },
+  "commands": {
+    "open-settings": {
+      "suggested_key": { "default": "Alt+Comma" },
+      "description": "WebGil 설정 열기/닫기"
+    },
+    "open-help": {
+      "suggested_key": { "default": "Alt+Period" },
+      "description": "WebGil 도움말 열기/닫기"
+    },
+    "focus-search": {
+      "suggested_key": { "default": "Alt+Shift+F" },
+      "description": "WebGil 검색창으로 이동"
+    }
+  },
   "name": "WebGil (웹길)",
   "version": "0.1.0",
   "description": "구조 기반 스크린리더 — CaptureSource(ExtensionSource) MVP",

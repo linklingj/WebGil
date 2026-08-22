@@ -4,7 +4,7 @@ import {
   type ProviderConfig,
 } from "@webgil/core";
 
-import { PANEL_VIEW_KEY } from "./panel/protocol.js";
+import { PANEL_VIEW_KEY, type PanelView } from "./panel/protocol.js";
 
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
@@ -16,12 +16,29 @@ void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
 // open()은 사용자 제스처 안에서만 되고 await를 거치면 제스처가 소진되므로 가장 먼저 호출한다.
 // 이어서 storage.session에 의도를 남기면, 패널이 방금 열렸으면 부팅 시 읽기가,
 // 이미 열려 있었으면 onChanged가 잡는다 — 메시지를 쓰지 않아 경쟁 조건이 없다.
-chrome.action.onClicked.addListener((tab) => {
-  const open = chrome.sidePanel.open(tab.windowId !== undefined ? { windowId: tab.windowId } : { tabId: tab.id! });
-  void open
-    .then(() => chrome.storage.session.set({ [PANEL_VIEW_KEY]: "settings" }))
-    .catch((error: unknown) => console.warn("[WebGil] 사이드패널을 열지 못했습니다", error));
+chrome.action.onClicked.addListener((tab) => showPanel("settings", tab.windowId));
+
+// 브라우저 단축키는 **포커스가 어디에 있든** 동작한다 — 페이지를 읽는 중에도 설정·도움말을 연다.
+// 패널 안에서만 듣는 keydown으로는 이게 불가능하다(패널에 포커스가 있어야 하니까).
+// onCommand는 사용자 제스처로 취급되므로 여기서 sidePanel.open()을 부를 수 있다.
+const COMMAND_VIEWS: Record<string, PanelView> = {
+  "open-settings": "settings",
+  "open-help": "help",
+  "focus-search": "search",
+};
+
+chrome.commands.onCommand.addListener((command, tab) => {
+  const view = COMMAND_VIEWS[command];
+  if (view) showPanel(view, tab?.windowId);
 });
+
+/** 패널을 열고(닫혀 있었다면) 무엇을 띄울지 남긴다. open()을 먼저 불러야 제스처가 살아 있다. */
+function showPanel(view: PanelView, windowId: number | undefined): void {
+  void chrome.sidePanel
+    .open(windowId !== undefined ? { windowId } : {})
+    .then(() => chrome.storage.session.set({ [PANEL_VIEW_KEY]: view }))
+    .catch((error: unknown) => console.warn("[WebGil] 사이드패널을 열지 못했습니다", error));
+}
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (isCompleteMessage(message)) {

@@ -7,10 +7,12 @@ import { isAltKey } from "../navigation/shortcuts.js";
 import { createHelpDialog } from "./help.js";
 import {
   isPanelStateMessage,
+  isPanelView,
   PANEL_COMMAND,
   PANEL_VIEW_KEY,
   type PanelCommand,
   type PanelState,
+  type PanelView,
 } from "./protocol.js";
 import { SearchBox } from "./search.js";
 import { SettingsDialog } from "./settings.js";
@@ -90,22 +92,22 @@ viewport.addEventListener("keydown", (event) => {
 document.addEventListener("keydown", (event) => {
   // Alt + , = 설정, Alt + . = 도움말. 같은 키로 닫는다.
   // macOS는 Option을 누르면 event.key가 합성 문자(≤ ≥)로 바뀌므로 물리 키(code)로 판정한다.
+  // 같은 키가 manifest의 commands에도 걸려 있어 패널 밖에서도 동작한다 — 두 경로가 겹쳐도
+  // applyIntent가 한 번만 처리한다.
   if (isAltKey(event, "Comma")) {
     event.preventDefault();
-    helpDialog.close();
-    settingsDialog.toggle();
+    applyIntent("settings");
     return;
   }
   if (isAltKey(event, "Period")) {
     event.preventDefault();
-    settingsDialog.close();
-    helpDialog.toggle();
+    applyIntent("help");
     return;
   }
   if (event.key !== "/" || event.target instanceof HTMLInputElement) return;
   if (document.querySelector("dialog[open]")) return; // 모달 뒤의 검색창을 건드리지 않는다
   event.preventDefault();
-  searchBox.focus();
+  applyIntent("search");
 });
 
 // --- 콘텐츠 스크립트 구독 ---
@@ -132,9 +134,39 @@ void attach();
 
 async function consumePendingView(): Promise<void> {
   const stored = await chrome.storage.session.get(PANEL_VIEW_KEY);
-  if (stored[PANEL_VIEW_KEY] !== "settings") return;
+  const view = stored[PANEL_VIEW_KEY];
+  if (!isPanelView(view)) return;
   await chrome.storage.session.remove(PANEL_VIEW_KEY);
-  settingsDialog.open();
+  applyIntent(view);
+}
+
+let lastIntentAt = 0;
+
+/**
+ * "이 화면을 띄워라" 요청 하나를 처리한다. 들어오는 길이 둘이다 —
+ * 패널이 직접 들은 키와, 브라우저 단축키(commands)가 background를 거쳐 남긴 storage 값.
+ * 패널에 포커스가 있으면 둘 다 들어올 수 있으므로 짧은 시간 안의 중복은 무시한다.
+ * (그냥 두면 열자마자 닫혀서 아무 일도 안 일어난 것처럼 보인다.)
+ */
+function applyIntent(view: PanelView): void {
+  const now = Date.now();
+  if (now - lastIntentAt < 400) return;
+  lastIntentAt = now;
+
+  if (view === "search") {
+    settingsDialog.close();
+    helpDialog.close();
+    searchBox.focus();
+    return;
+  }
+  // 모달이 겹치지 않게 다른 창은 닫고 연다.
+  if (view === "settings") {
+    helpDialog.close();
+    settingsDialog.toggle();
+  } else {
+    settingsDialog.close();
+    helpDialog.toggle();
+  }
 }
 
 async function attach(): Promise<void> {

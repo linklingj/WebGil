@@ -22,6 +22,11 @@ export function isAltKey(event: KeyboardEvent, code: string): boolean {
  * 표를 따로 적어두면 실제 동작과 어긋나므로, 새 단축키를 붙일 땐 여기부터 고친다.
  */
 export const SHORTCUTS: ReadonlyArray<{ group: string; keys: string; what: string }> = [
+  // 브라우저 단축키(manifest commands) — 포커스가 페이지에 있어도 동작한다.
+  // chrome://extensions/shortcuts 에서 사용자가 바꿀 수 있다.
+  { group: "어디서나", keys: "Alt + ,", what: "설정 열기 / 닫기" },
+  { group: "어디서나", keys: "Alt + .", what: "도움말 열기 / 닫기" },
+  { group: "어디서나", keys: "Alt + Shift + F", what: "패널 검색창으로 이동" },
   { group: "페이지", keys: "Alt + ↓ / →", what: "같은 레벨 다음 항목" },
   { group: "페이지", keys: "Alt + ↑ / ←", what: "같은 레벨 이전 항목" },
   { group: "페이지", keys: "Alt + Enter", what: "하위 진입 (하위가 없으면 실행)" },
@@ -34,11 +39,9 @@ export const SHORTCUTS: ReadonlyArray<{ group: string; keys: string; what: strin
   { group: "패널", keys: "↓ / Enter", what: "하위 진입 (하위가 없으면 실행)" },
   { group: "패널", keys: "↑ / Backspace", what: "상위 복귀" },
   { group: "패널", keys: "Home", what: "현재 위치로 카메라 되돌리기" },
-  { group: "패널", keys: "/", what: "검색창으로 이동" },
+  { group: "패널", keys: "/", what: "검색창으로 이동 (패널에 포커스가 있을 때)" },
   { group: "패널", keys: "검색창에서 ?", what: "자연어 명령으로 실행" },
   { group: "패널", keys: "Esc", what: "검색창에서 트리로 돌아가기" },
-  { group: "패널", keys: "Alt + ,", what: "설정 열기 / 닫기" },
-  { group: "패널", keys: "Alt + .", what: "도움말 열기 / 닫기" },
   { group: "설정·도움말", keys: "Alt + ↑ / ↓", what: "항목 이동 — 옮긴 항목을 음성으로 읽어준다" },
   { group: "설정·도움말", keys: "Tab", what: "항목 이동 (같은 안내를 읽어준다)" },
   { group: "설정·도움말", keys: "Esc", what: "창 닫기" },
