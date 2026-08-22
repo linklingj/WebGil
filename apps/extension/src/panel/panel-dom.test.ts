@@ -94,6 +94,28 @@ test("트리 뷰: 형제 사이를 오가면 카메라가 새 커서를 따라�
   });
 });
 
+test("트리 뷰: 직접 줌하면 추적을 멈추되, 커서가 움직이면 다시 따라간다", () => {
+  withPanel((dom) => {
+    const viewport = dom.window.document.querySelector<HTMLElement>("#viewport")!;
+    const camera = viewport.querySelector<HTMLElement>(".camera")!;
+    const view = new TreeView(viewport, { onSelect: () => {}, onActivate: () => {} });
+    view.render(tree, "공지");
+    assert.equal(view.isFollowing, true);
+
+    // 트랙패드 두 손가락 스크롤도 휠로 들어온다 — 그 순간 자동 추적을 놓아준다.
+    viewport.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: -400, clientX: 200, clientY: 300, bubbles: true }));
+    assert.equal(view.isFollowing, false, "직접 보고 있는 화면을 뺏지 않는다");
+
+    const parked = camera.style.transform;
+    view.render(tree, "공지");
+    assert.equal(camera.style.transform, parked, "같은 커서로 다시 그려도 화면은 그대로");
+
+    view.render(tree, "소식");
+    assert.equal(view.isFollowing, true, "커서가 움직이면 카메라가 되돌아온다");
+    assert.notEqual(camera.style.transform, parked);
+  });
+});
+
 test("검색창: 일치 결과는 목록으로, ?로 시작하면 자연어 명령으로 넘긴다", () => {
   withPanel((dom) => {
     const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;

@@ -79,6 +79,7 @@ export class TreeView {
   }
 
   render(root: SnapshotNode, cursorId: string | null): void {
+    const moved = cursorId !== this.cursorId;
     this.cursorId = cursorId;
     const visible = prune(root, cursorId);
     const layout = tidyTree<SnapshotNode>().nodeSize([NODE_GAP_X, NODE_GAP_Y])(hierarchy(visible, (d) => d.children));
@@ -90,6 +91,11 @@ export class TreeView {
 
     this.paintNodes(layout, root);
     this.paintEdges(layout, root.id);
+
+    // 커서가 움직였으면 카메라도 반드시 따라간다.
+    // 직접 팬·줌한 화면은 "그 자리를 들여다보는 동안"만 유지된다 — 다음 이동에서 되돌아온다.
+    // (트랙패드 두 손가락 스크롤이 휠로 들어와 추적이 꺼지는 일이 잦아서, 이동이 곧 복귀 신호다.)
+    if (moved) this.setFollowing(true);
     if (this.following) this.centerOnCursor();
   }
 

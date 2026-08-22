@@ -19,6 +19,9 @@ export class ExtensionSource implements CaptureSource {
   private readonly win: Window & typeof globalThis;
   private overlay?: HTMLElement;
   private observer?: MutationObserver;
+  /** 지금 강조 중인 노드. 스크롤·리사이즈 때 오버레이를 다시 붙이는 데 쓴다. */
+  private highlighted?: HTMLElement;
+  private tracking = false;
 
   // doc 주입은 테스트(jsdom)를 위한 것. 실제 content script에선 전역 document를 쓴다.
   constructor(doc: Document = document) {
@@ -66,15 +69,52 @@ export class ExtensionSource implements CaptureSource {
   }
 
   // 노드를 화면에 강조. 단일 오버레이 박스를 노드 위치로 옮긴다(getBoundingClientRect).
+  // 화면 밖의 노드로 이동했으면 먼저 스크롤해서 눈에 보이게 한다 — 커서가 보이지 않으면
+  // 남아 있는 시력을 쓰는 사용자와 옆에서 보는 사람 모두 지금 어디인지 알 수 없다.
   highlight(nodeId: NodeId): void {
     const el = this.resolve(nodeId);
     if (!el) return;
+    this.highlighted = el;
+    this.scrollIntoViewIfNeeded(el);
+    this.paintOverlay(el);
+    this.trackViewport();
+  }
+
+  /**
+   * 노드가 화면 밖이면 가운데로 스크롤한다.
+   * 한 화면에 안 들어가는 큰 영역(긴 섹션·본문 전체 group)은 어디로 맞춰도 잘리므로 건드리지 않는다.
+   */
+  private scrollIntoViewIfNeeded(el: HTMLElement): void {
+    const r = el.getBoundingClientRect();
+    const height = this.win.innerHeight || 0;
+    const width = this.win.innerWidth || 0;
+    if (!height || !width) return;
+    if (r.height > height || r.width > width) return;
+
+    const outside = r.top < 0 || r.bottom > height || r.left < 0 || r.right > width;
+    // 부드러운 스크롤은 비동기라 바로 뒤의 좌표 측정이 어긋난다. 즉시 스크롤한다.
+    // (jsdom에는 scrollIntoView가 없다 — 옵셔널 호출)
+    if (outside) el.scrollIntoView?.({ block: "center", inline: "nearest" });
+  }
+
+  private paintOverlay(el: HTMLElement): void {
     const box = this.ensureOverlay();
     const r = el.getBoundingClientRect();
     box.style.transform = `translate(${r.left}px, ${r.top}px)`;
     box.style.width = `${r.width}px`;
     box.style.height = `${r.height}px`;
     box.style.display = "block";
+  }
+
+  /** 오버레이는 fixed라 사용자가 직접 스크롤하면 제자리에 남는다. 따라붙게 한 번만 걸어둔다. */
+  private trackViewport(): void {
+    if (this.tracking) return;
+    this.tracking = true;
+    const reposition = () => {
+      if (this.highlighted?.isConnected) this.paintOverlay(this.highlighted);
+    };
+    this.win.addEventListener("scroll", reposition, { passive: true, capture: true });
+    this.win.addEventListener("resize", reposition, { passive: true });
   }
 
   // SPA 갱신 감지 → 디바운스 후 콜백. 코어가 재추출하도록 신호만 준다.
