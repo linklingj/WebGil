@@ -22,6 +22,7 @@ function withPanel(run: (dom: JSDOM) => void): void {
   const dom = new JSDOM(html, { pretendToBeVisual: true });
   // d3-zoom은 확대 범위를 정할 때 전역 SVGElement를 본다(브라우저엔 늘 있다).
   const globals = {
+    window: dom.window,
     document: dom.window.document,
     HTMLElement: dom.window.HTMLElement,
     SVGElement: dom.window.SVGElement,
@@ -72,6 +73,24 @@ test("트리 뷰: 커서 노드를 다시 누르면 실행, 다른 노드는 이
     viewport.querySelector<HTMLElement>("#n-공지")!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
     viewport.querySelector<HTMLElement>("#n-본문")!.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
     assert.deepEqual(calls, ["select:공지", "activate:본문"]);
+  });
+});
+
+test("트리 뷰: 형제 사이를 오가면 카메라가 새 커서를 따라간다", () => {
+  withPanel((dom) => {
+    const viewport = dom.window.document.querySelector<HTMLElement>("#viewport")!;
+    const camera = viewport.querySelector<HTMLElement>(".camera")!;
+    const view = new TreeView(viewport, { onSelect: () => {}, onActivate: () => {} });
+
+    view.render(tree, "공지");
+    const atFirst = camera.style.transform;
+    view.render(tree, "소식");
+    const atSecond = camera.style.transform;
+
+    assert.match(atFirst, /^translate\(/, "카메라는 transform으로 움직인다");
+    assert.notEqual(atSecond, atFirst, "옆 형제로 옮기면 화면도 그만큼 따라 움직인다");
+    view.render(tree, "공지");
+    assert.equal(camera.style.transform, atFirst, "되돌아오면 같은 자리");
   });
 });
 

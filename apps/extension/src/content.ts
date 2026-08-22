@@ -58,15 +58,19 @@ let documentTree = scan();
 const actions = new ActionExecutor(source, (id) => navigation?.nodeById(id) ?? null);
 
 // 하위가 없는 노드에서의 Alt+Enter는 활성화로 해석한다(링크·버튼 클릭, 입력칸 포커스).
-async function activate(node: DocNode) {
+// 패널에서 실행한 경우엔 패널이 읽으므로(announce=false) 같은 문장이 두 번 나오지 않는다.
+async function activate(node: DocNode, announce = true): Promise<string> {
   const result = await actions.activate(node.id);
   const message =
     result.status === "executed" ? `${node.text || "항목"} 실행` : result.reason;
   console.log(`[WebGil] ${message}`);
   // 실행 결과는 화면을 못 보는 사용자에게 유일한 피드백이라 반드시 소리로 알린다.
-  void narrator
-    .announce({ text: message, kind: "text", level: node.level }, { detail: "brief" })
-    .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+  if (announce) {
+    void narrator
+      .announce({ text: message, kind: "text", level: node.level }, { detail: "brief" })
+      .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+  }
+  return message;
 }
 
 // SPA 갱신 시 재추출(디바운스는 ExtensionSource 내부).
@@ -124,7 +128,9 @@ async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
     }
     case "activate": {
       const node = navigation!.nodeById(command.id);
-      if (node) await activate(node);
+      // 실행 결과는 패널이 읽는다 — 패널에서 누른 버튼의 결과는 패널에서 들려야 자연스럽다.
+      message = node ? await activate(node, false) : "이미 사라진 항목입니다.";
+      speak = true;
       break;
     }
     case "refine":

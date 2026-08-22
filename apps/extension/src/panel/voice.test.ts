@@ -124,3 +124,39 @@ test("창을 닫으면 닫혔다고 알린다", async () => {
   dialog.close();
   assert.deepEqual(await flush(), ["설정 창을 닫았습니다."]);
 });
+
+test("검색 결과 사이를 오르내리면 지금 고른 결과를 읽는다", async () => {
+  const { SearchBox } = await import("./search.js");
+  const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;
+  const input = header.querySelector<HTMLInputElement>("#search")!;
+  const search = new SearchBox(header, { onSelect: () => {}, onAsk: () => {}, onDismiss: () => {} });
+  search.setTree({
+    id: "root",
+    kind: "group",
+    level: 0,
+    text: "",
+    children: [
+      {
+        id: "본문",
+        kind: "group",
+        level: 1,
+        text: "본문",
+        children: [
+          { id: "공지사항", kind: "heading", level: 2, text: "공지사항", children: [] },
+          { id: "지난 공지", kind: "text", level: 2, text: "지난 공지", children: [] },
+        ],
+      },
+    ],
+  });
+
+  input.value = "공지";
+  input.dispatchEvent(new dom.window.Event("input"));
+  await flush(); // 타이핑 자체는 읽지 않는다
+
+  // 숫자는 코어의 한국어 발음 정규화를 그대로 탄다(페이지 낭독과 같은 규칙).
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  assert.deepEqual(await flush(), ["지난 공지, 본문 안, 이 번, 전체 이 개"]);
+
+  input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
+  assert.deepEqual(await flush(), ["공지사항, 본문 안, 일 번, 전체 이 개"]);
+});

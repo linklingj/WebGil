@@ -3,6 +3,7 @@
 //  2) `?`로 시작하거나 일치가 없으면 자연어 명령(06 LLM 명령 엔진)으로 넘긴다.
 // 페이지에 오버레이로 띄우던 명령 팔레트를 여기로 흡수해, 원본 페이지에 주입하는 UI를 하나 줄인다.
 import { searchTree, type SearchHit, type SnapshotNode } from "@webgil/core";
+import { speak } from "./voice.js";
 
 export interface SearchOptions {
   /** 검색 결과 선택 = 그 노드로 커서 이동. */
@@ -35,6 +36,12 @@ export class SearchBox {
   focus(): void {
     this.input.focus();
     this.input.select();
+  }
+
+  /** 명령이 끝나면 입력창을 비운다 — 다음 명령이 앞 명령 위에 겹쳐 쌓이지 않게. */
+  clear(): void {
+    this.input.value = "";
+    this.update();
   }
 
   setTree(tree: SnapshotNode): void {
@@ -104,6 +111,9 @@ export class SearchBox {
     const step = event.key === "ArrowDown" ? 1 : -1;
     this.active = (this.active + step + this.hits.length) % this.hits.length;
     this.paint(this.input.value);
+    // 화면을 못 보면 지금 어느 결과에 와 있는지 알 길이 없다.
+    const hit = this.hits[this.active];
+    speak(`${hit.text || "이름 없는 항목"}, ${hit.path.length ? `${hit.path.join(" ")} 안` : "최상위"}, ${this.active + 1}번, 전체 ${this.hits.length}개`);
   }
 
   private choose(index: number): void {

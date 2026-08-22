@@ -36,12 +36,13 @@ const searchBox = new SearchBox(required<HTMLElement>("#searchBar"), {
   },
   onAsk: (input) => {
     // 확인이 걸린 액션은 같은 입력에 대한 다음 Enter가 곧 확인이다(07 가드레일).
+    // 그래서 되묻는 동안에는 입력창을 비우지도, 포커스를 옮기지도 않는다.
     if (awaitingConfirm) {
-      void send({ type: "confirm" });
+      void send({ type: "confirm" }).then(finishCommand);
       return;
     }
     setStatus("명령을 해석하는 중…");
-    void send({ type: "ask", input });
+    void send({ type: "ask", input }).then(finishCommand);
   },
   onDismiss: () => viewport.focus(),
 });
@@ -53,13 +54,22 @@ required<HTMLElement>("#recenter").addEventListener("click", () => {
   viewport.focus();
 });
 
-// --- 키보드: 페이지 쪽 Alt 조합과 같은 이동을 패널 안에서는 맨손 방향키로 한다 ---
+/** 명령이 끝나면 입력창을 비우고 그래프로 돌아간다. 확인 대기 중이면 그대로 둔다. */
+function finishCommand(): void {
+  if (awaitingConfirm) return;
+  searchBox.clear();
+  viewport.focus();
+}
+
+// --- 키보드: 패널은 트리를 눈에 보이게 그리므로, 키 방향을 그림과 일치시킨다.
+// 형제는 좌우로 늘어서 있고 자식은 아래에 있다 → ←/→ = 형제, ↓ = 하위, ↑ = 상위.
+// (페이지 쪽 Alt 조합은 화면이 없는 목록 은유라 ↓ = 다음 항목으로 남는다.)
 const KEY_COMMANDS: Record<string, NavigationCommand> = {
-  ArrowDown: "next",
-  ArrowUp: "previous",
-  ArrowRight: "enter",
+  ArrowRight: "next",
+  ArrowLeft: "previous",
+  ArrowDown: "enter",
   Enter: "enter",
-  ArrowLeft: "back",
+  ArrowUp: "back",
   Backspace: "back",
 };
 

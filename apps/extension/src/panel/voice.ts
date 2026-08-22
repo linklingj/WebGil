@@ -8,14 +8,22 @@ import { NarrationController } from "@webgil/core";
 import { ElevenLabsSpeechEngine } from "../tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "../tts/web-speech-engine.js";
 
-const narrator = new NarrationController(new ElevenLabsSpeechEngine(new WebSpeechEngine()));
+// 엔진은 첫 낭독 때 만든다. 모듈을 불러오는 것만으로 window.speechSynthesis를 붙잡지 않게 —
+// 그래야 이 파일을 import하는 다른 모듈이 브라우저 밖에서도 로드된다.
+let narrator: NarrationController | undefined;
 
 /** 한 문장 낭독. 새 낭독이 이전 낭독을 선점한다(빠르게 이동해도 밀리지 않는다). */
 export function speak(text: string): void {
   if (!text.trim()) return;
-  void narrator
-    .announce({ text, kind: "text", level: 0 }, { detail: "brief" })
-    .catch((error) => console.warn("[WebGil] 패널 낭독 실패", error));
+  try {
+    narrator ??= new NarrationController(new ElevenLabsSpeechEngine(new WebSpeechEngine()));
+    void narrator
+      .announce({ text, kind: "text", level: 0 }, { detail: "brief" })
+      .catch((error) => console.warn("[WebGil] 패널 낭독 실패", error));
+  } catch (error) {
+    // 음성이 안 나오는 것보다 조작이 멈추는 게 나쁘다.
+    console.warn("[WebGil] 패널 낭독 엔진을 만들지 못했습니다", error);
+  }
 }
 
 export interface DialogVoiceOptions {
