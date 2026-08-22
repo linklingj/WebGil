@@ -3,7 +3,7 @@
 // 조작은 id를 실어 되돌려 보낸다. (docs/01_SYSTEM/08)
 import type { NavigationCommand, SnapshotNode } from "@webgil/core";
 import "./panel.css";
-import { renderHelp } from "./help.js";
+import { createHelpDialog } from "./help.js";
 import {
   isPanelStateMessage,
   PANEL_COMMAND,
@@ -14,10 +14,11 @@ import {
 import { SearchBox } from "./search.js";
 import { SettingsDialog } from "./settings.js";
 import { TreeView } from "./tree-view.js";
+import { speak } from "./voice.js";
 
 const viewport = required<HTMLElement>("#viewport");
 const statusLine = required<HTMLElement>("#status");
-const helpDialog = required<HTMLDialogElement>("#helpDialog");
+const helpDialog = createHelpDialog(required<HTMLDialogElement>("#helpDialog"));
 const settingsDialog = new SettingsDialog(required<HTMLDialogElement>("#settingsDialog"));
 
 let tabId: number | null = null;
@@ -45,8 +46,7 @@ const searchBox = new SearchBox(required<HTMLElement>("#searchBar"), {
   onDismiss: () => viewport.focus(),
 });
 
-renderHelp(helpDialog);
-required<HTMLElement>("#helpButton").addEventListener("click", () => helpDialog.showModal());
+required<HTMLElement>("#helpButton").addEventListener("click", () => helpDialog.open());
 required<HTMLElement>("#settingsButton").addEventListener("click", () => settingsDialog.open());
 required<HTMLElement>("#recenter").addEventListener("click", () => {
   treeView.recenter();
@@ -78,6 +78,7 @@ viewport.addEventListener("keydown", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "/" || event.target instanceof HTMLInputElement) return;
+  if (document.querySelector("dialog[open]")) return; // 모달 뒤의 검색창을 건드리지 않는다
   event.preventDefault();
   searchBox.focus();
 });
@@ -133,7 +134,10 @@ async function send(command: PanelCommand): Promise<unknown> {
     awaitingConfirm = isRecord(response) && response.awaitingConfirm === true;
     // 응답에 갱신된 상태가 함께 온다 — 따로 되묻지 않는다. 명령 결과 문구는 상태 줄을 덮어쓴다.
     if (isPanelStateMessage(response)) apply(response.state);
-    if (isRecord(response) && typeof response.message === "string") setStatus(response.message);
+    if (isRecord(response) && typeof response.message === "string") {
+      setStatus(response.message);
+      if (response.speak === true) speak(response.message);
+    }
     return response;
   } catch {
     unavailable();

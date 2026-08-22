@@ -30,6 +30,11 @@ export interface PanelReply {
   message?: string;
   /** true면 같은 입력에 대한 다음 Enter는 실행 확인으로 해석한다(07 가드레일). */
   awaitingConfirm?: boolean;
+  /**
+   * true면 패널이 `message`를 소리로도 읽는다.
+   * 페이지 쪽 낭독기가 이미 말한 결과(노드 이동·현재 항목 읽기)는 false로 와서 겹치지 않는다.
+   */
+  speak?: boolean;
 }
 
 export const PANEL_COMMAND = "webgil.panel.command";

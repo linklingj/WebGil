@@ -1,16 +1,24 @@
 // 08 설정 다이얼로그 — popup.ts에서 그대로 이관.
 // 저장 키·스키마를 바꾸지 않는다 → background는 손대지 않아도 되고 기존 설정도 살아남는다.
 // 사이드패널도 popup과 같은 신뢰된 확장 컨텍스트라 storage.local(TRUSTED_CONTEXTS)을 그대로 읽는다.
+import { attachDialogVoice, describeFormControl, speak, type DialogVoice } from "./voice.js";
+
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
 
 export class SettingsDialog {
   private readonly form: HTMLFormElement;
   private readonly ttsForm: HTMLFormElement;
+  private readonly voice: DialogVoice;
 
   constructor(private readonly dialog: HTMLDialogElement) {
     this.form = dialog.querySelector<HTMLFormElement>("#settings")!;
     this.ttsForm = dialog.querySelector<HTMLFormElement>("#ttsSettings")!;
+    this.voice = attachDialogVoice(dialog, {
+      label: "설정",
+      stops: () => [...dialog.querySelectorAll<HTMLElement>("select, input, button")],
+      describe: (element) => describeFormControl(dialog, element),
+    });
 
     this.form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -25,9 +33,8 @@ export class SettingsDialog {
 
   /** 툴바 아이콘·⚙ 버튼 양쪽이 부르는 진입점. 열 때마다 저장값을 다시 읽는다. */
   open(): void {
-    void this.load();
-    if (!this.dialog.open) this.dialog.showModal();
-    this.field<HTMLSelectElement>("#provider").focus();
+    // 값을 먼저 채우고 열어야 "API 키, 저장된 값 있음" 안내가 실제 상태와 맞는다.
+    void this.load().then(() => this.voice.open());
   }
 
   private async load(): Promise<void> {
@@ -55,11 +62,11 @@ export class SettingsDialog {
       apiKey: this.field<HTMLInputElement>("#apiKey").value.trim(),
     };
     if (!config.model || !config.apiKey) {
-      status.textContent = "모델 ID와 API 키를 입력해 주세요.";
+      this.report(status, "모델 ID와 API 키를 입력해 주세요.");
       return;
     }
     await chrome.storage.local.set({ [LLM_STORAGE_KEY]: config });
-    status.textContent = "이 기기에 저장했습니다.";
+    this.report(status, "이 기기에 저장했습니다.");
   }
 
   private async saveTTS(): Promise<void> {
@@ -71,11 +78,17 @@ export class SettingsDialog {
       model: "eleven_multilingual_v2",
     };
     if (!config.apiKey || !config.voiceId) {
-      status.textContent = "ElevenLabs API 키와 Voice ID를 입력해 주세요.";
+      this.report(status, "ElevenLabs API 키와 Voice ID를 입력해 주세요.");
       return;
     }
     await chrome.storage.local.set({ [TTS_STORAGE_KEY]: config });
-    status.textContent = "ElevenLabs 음성을 이 기기에 저장했습니다.";
+    this.report(status, "ElevenLabs 음성을 이 기기에 저장했습니다.");
+  }
+
+  /** 저장 결과는 화면을 못 보는 사용자에게 유일한 피드백이라 소리로도 알린다. */
+  private report(status: HTMLElement, message: string): void {
+    status.textContent = message;
+    speak(message);
   }
 
   private field<T extends Element>(selector: string): T {

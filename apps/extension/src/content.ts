@@ -105,6 +105,7 @@ function publish(): void {
 async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
   let message: string | undefined;
   let awaitingConfirm = false;
+  let speak = false;
   switch (command.type) {
     case "sync":
       break;
@@ -136,10 +137,14 @@ async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
         : await confirmPendingCommand();
       message = describeDispatch(result);
       awaitingConfirm = result.status === "confirmationRequired";
+      // 이동·현재 항목 읽기는 dispatch가 이미 낭독했다. 나머지(답변·되묻기·거절·액션 실행)는
+      // 아무도 말하지 않으므로 패널이 읽게 넘긴다 — 화면을 못 보면 이게 유일한 피드백이다.
+      speak = !(result.status === "executed"
+        && (result.command.type === "navigation" || result.command.type === "speech"));
       break;
     }
   }
-  return { type: PANEL_STATE, state: panelState(), message, awaitingConfirm };
+  return { type: PANEL_STATE, state: panelState(), message, awaitingConfirm, speak };
 }
 
 /** 명령 처리 결과를 패널 상태 줄 한 줄로. 확인이 필요한 액션은 문장으로 되묻는다. */
@@ -162,7 +167,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     .then(sendResponse)
     .catch((error: unknown) => {
       const text = error instanceof Error ? error.message : "명령을 처리하지 못했습니다.";
-      sendResponse({ type: PANEL_STATE, state: panelState(), message: text, awaitingConfirm: false } satisfies PanelReply);
+      // 오류 문구도 소리로 나가야 사용자가 실패를 안다.
+      sendResponse({
+        type: PANEL_STATE,
+        state: panelState(),
+        message: text,
+        awaitingConfirm: false,
+        speak: true,
+      } satisfies PanelReply);
     });
   return true;
 });
