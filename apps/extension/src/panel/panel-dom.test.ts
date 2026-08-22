@@ -20,9 +20,11 @@ const tree = node("root", [node("본문", [node("공지"), node("소식")]), nod
 
 function withPanel(run: (dom: JSDOM) => void): void {
   const dom = new JSDOM(html, { pretendToBeVisual: true });
-  // d3-zoom은 확대 범위를 정할 때 전역 SVGElement를 본다(브라우저엔 늘 있다).
+  // d3-zoom은 확대 범위에 전역 SVGElement를, 터치 지원 판정에 navigator를 본다.
+  // 브라우저엔 늘 있지만 Node 20에는 전역 navigator가 없다(21+에서 추가) → CI에서만 터진다.
   const globals = {
     window: dom.window,
+    navigator: dom.window.navigator,
     document: dom.window.document,
     HTMLElement: dom.window.HTMLElement,
     SVGElement: dom.window.SVGElement,

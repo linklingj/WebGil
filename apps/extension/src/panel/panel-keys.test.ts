@@ -29,6 +29,7 @@ class FakeAudio {
 const noopEvent = { addListener: () => {} };
 Object.assign(globalThis, {
   window,
+  navigator: window.navigator,
   document,
   HTMLElement: window.HTMLElement,
   HTMLButtonElement: window.HTMLButtonElement,

@@ -27,6 +27,7 @@ class FakeAudio {
 // voice.ts는 import 시점에 엔진을 만든다 → 전역을 먼저 세운 뒤에 불러온다.
 Object.assign(globalThis, {
   window: dom.window,
+  navigator: dom.window.navigator,
   document: dom.window.document,
   HTMLElement: dom.window.HTMLElement,
   HTMLButtonElement: dom.window.HTMLButtonElement,
