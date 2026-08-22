@@ -93,9 +93,8 @@
 |---|---|---|
 | LLM 제공자 / 모델 / API 키 | `webgil.llm.provider` | popup과 동일 스키마 |
 | ElevenLabs API 키 / Voice ID / 모델 | `webgil.tts.elevenlabs` | popup과 동일 스키마 |
-| 낭독 속도·상세도 | (신규) | |
-| 터치 네비게이션 기본값 | (신규) | 현재는 매번 `Alt+Shift+T` |
-| 자동 카메라 on/off | (신규) | |
+| 낭독 속도·상세도 | (신규, 미구현) | 아래 "아직 안 한 것" |
+| 터치 네비게이션 기본값 | (신규, 미구현) | 현재는 매번 `Alt+Shift+T` |
 
 저장 키와 스키마를 그대로 두면 **background는 한 줄도 안 고쳐도 되고, 기존 사용자의 설정도 그대로 살아난다.** API 키 경고 문구(외부 전송 범위)도 함께 옮긴다.
 
@@ -169,15 +168,21 @@
 ```
 apps/extension/src/panel/
   panel.html      레이아웃 + 두 개의 <dialog>
-  panel.ts        진입 — 메시지 구독, 조립
-  tree-view.ts    d3-hierarchy 레이아웃 + 카메라
+  panel.css       테마·대비·reduced motion
+  panel.ts        진입 — 메시지 구독, 조립, 키보드
+  protocol.ts     패널 ↔ 콘텐츠 메시지 규약(양쪽이 함께 import)
+  tree-view.ts    d3-hierarchy 레이아웃 + 카메라 + 부분 렌더
   search.ts       검색 / 자연어 명령 입력
-  settings.ts     popup.ts 이관 + 신규 항목
-  help.ts         단축키 표
+  settings.ts     popup.ts 이관
+  help.ts         SHORTCUTS 렌더
 ```
 
-- `popup.html` / `popup.ts` 삭제, `build.mjs` 엔트리를 패널로 교체.
-- 새 런타임 의존: `d3-hierarchy`, `d3-zoom` (ISC). 그 외 추가 없음.
+- `popup.html` / `popup.ts` 삭제, `build.mjs` 엔트리를 패널로 교체(빌드 산출물은 `dist/panel/`).
+- 코어에 추가된 건 `toSnapshot()`·`searchTree()`(03)와 `NavigationEngine.moveTo()`·`position`(04)뿐이다.
+- 새 런타임 의존: `d3-hierarchy`, `d3-zoom`, `d3-selection` (ISC). `d3-shape`·`d3-transition`은 넣지 않았다 — 링크 path는 한 줄이고, 200ms 이징은 CSS `transition`이 한다.
+- 검증: `prune()` 규칙 단위 테스트 + 진짜 `panel.html`을 jsdom에 띄우는 스모크 테스트(선택자·역할 속성이 코드와 어긋나면 실패).
+
+**아직 안 한 것** — 설정 표의 "신규" 3줄 중 낭독 속도·터치 네비 기본값은 미구현이다. 콘텐츠 스크립트는 `storage.local`(TRUSTED_CONTEXTS)을 읽을 수 없어 값을 전달할 경로부터 정해야 한다. 자동 카메라는 패널 안에서 팬·줌으로 껐다 켜므로 별도 설정을 두지 않았다.
 
 ## 의존
 

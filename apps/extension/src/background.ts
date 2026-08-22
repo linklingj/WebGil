@@ -4,11 +4,24 @@ import {
   type ProviderConfig,
 } from "@webgil/core";
 
+import { PANEL_VIEW_KEY } from "./panel/protocol.js";
+
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
 
 // API 키가 content script에 노출되지 않도록 확장 프로그램의 신뢰된 컨텍스트에서만 저장소를 읽게 한다.
 void chrome.storage.local.setAccessLevel({ accessLevel: "TRUSTED_CONTEXTS" });
+
+// 툴바 아이콘 = popup이 아니라 "사이드패널의 설정 창". (docs/01_SYSTEM/08)
+// open()은 사용자 제스처 안에서만 되고 await를 거치면 제스처가 소진되므로 가장 먼저 호출한다.
+// 이어서 storage.session에 의도를 남기면, 패널이 방금 열렸으면 부팅 시 읽기가,
+// 이미 열려 있었으면 onChanged가 잡는다 — 메시지를 쓰지 않아 경쟁 조건이 없다.
+chrome.action.onClicked.addListener((tab) => {
+  const open = chrome.sidePanel.open(tab.windowId !== undefined ? { windowId: tab.windowId } : { tabId: tab.id! });
+  void open
+    .then(() => chrome.storage.session.set({ [PANEL_VIEW_KEY]: "settings" }))
+    .catch((error: unknown) => console.warn("[WebGil] 사이드패널을 열지 못했습니다", error));
+});
 
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (isCompleteMessage(message)) {

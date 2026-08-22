@@ -74,6 +74,57 @@ export function indexById(root: DocNode): Map<NodeId, DocNode> {
   return index;
 }
 
+// --- 직렬화 경계 (셸 간 전송) ---
+
+/**
+ * 핸들을 뗀 전송용 트리. 사이드패널(08)처럼 페이지와 **다른 컨텍스트**에 있는 화면 계층은
+ * `handle`(DOM Element)을 구조화 복제할 수 없다 — 보내봐야 빈 객체로 도착한다.
+ * 그래서 뷰에는 이 스냅샷만 건네고, 뷰는 `id`로만 노드를 지목한다.
+ * 부수 효과로 "화면 계층에 DOM 핸들을 넘기지 않는다"는 원칙도 함께 지켜진다. (docs/01_SYSTEM/08)
+ */
+export type SnapshotNode = Omit<DocNode, "handle" | "children"> & { children: SnapshotNode[] };
+
+export function toSnapshot(node: DocNode): SnapshotNode {
+  const { handle: _handle, children, ...rest } = node;
+  return { ...rest, children: children.map(toSnapshot) };
+}
+
+// --- 검색 (08 상단 내비게이션 검색) ---
+
+export interface SearchHit {
+  id: NodeId;
+  text: string;
+  kind: NodeKind;
+  level: number;
+  /** 루트 아래 조상들의 텍스트. "본문 > 공지사항"처럼 위치를 보여주는 데 쓴다. */
+  path: string[];
+}
+
+/**
+ * 트리 텍스트 부분 일치 검색. LLM을 타지 않으므로 즉시·오프라인이다(비용 0).
+ * 접두 일치를 먼저, 그다음 문서 순서. DocNode·SnapshotNode 양쪽에 그대로 쓴다.
+ */
+export function searchTree(root: SnapshotNode, query: string, limit = 20): SearchHit[] {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+
+  const prefix: SearchHit[] = [];
+  const rest: SearchHit[] = [];
+  const walk = (parent: SnapshotNode, path: string[]) => {
+    for (const child of parent.children) {
+      const at = child.text.toLowerCase().indexOf(needle);
+      if (at >= 0) {
+        const hit: SearchHit = { id: child.id, text: child.text, kind: child.kind, level: child.level, path };
+        (at === 0 ? prefix : rest).push(hit);
+      }
+      // 텍스트가 없는 group도 경로에는 남기지 않는다(빈 칸이 경로를 어지럽힌다).
+      walk(child, child.text ? [...path, child.text] : path);
+    }
+  };
+  walk(root, []);
+  return [...prefix, ...rest].slice(0, limit);
+}
+
 // --- 관찰용 읽기 헬퍼 (콘솔·벤치) ---
 
 export interface TreeStats {

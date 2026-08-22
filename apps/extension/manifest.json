@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "permissions": ["storage"],
+  "permissions": ["storage", "sidePanel", "tabs"],
   "host_permissions": [
     "https://api.openai.com/*",
     "https://generativelanguage.googleapis.com/*",
@@ -12,7 +12,10 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html"
+    "default_title": "WebGil 설정 열기"
+  },
+  "side_panel": {
+    "default_path": "panel/panel.html"
   },
   "name": "WebGil (웹길)",
   "version": "0.1.0",
