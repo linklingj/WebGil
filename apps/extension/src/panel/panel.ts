@@ -2,7 +2,6 @@
 // 트리·커서·TTS·액션의 소유자는 여전히 콘텐츠 스크립트다. 패널은 스냅샷을 받아 그리고,
 // 조작은 id를 실어 되돌려 보낸다. (docs/01_SYSTEM/08)
 import type { NavigationCommand, SnapshotNode } from "@webgil/core";
-import "./panel.css";
 import { isAltKey } from "../navigation/shortcuts.js";
 import { createHelpDialog } from "./help.js";
 import {
@@ -64,10 +63,10 @@ function finishCommand(): void {
   viewport.focus();
 }
 
-// --- 키보드: 패널은 트리를 눈에 보이게 그리므로, 키 방향을 그림과 일치시킨다.
+// --- 키보드 ---
+// 맨손 방향키: 패널은 트리를 눈에 보이게 그리므로 키 방향을 그림과 맞춘다.
 // 형제는 좌우로 늘어서 있고 자식은 아래에 있다 → ←/→ = 형제, ↓ = 하위, ↑ = 상위.
-// (페이지 쪽 Alt 조합은 화면이 없는 목록 은유라 ↓ = 다음 항목으로 남는다.)
-const KEY_COMMANDS: Record<string, NavigationCommand> = {
+const PANEL_KEYS: Record<string, NavigationCommand> = {
   ArrowRight: "next",
   ArrowLeft: "previous",
   ArrowDown: "enter",
@@ -76,18 +75,16 @@ const KEY_COMMANDS: Record<string, NavigationCommand> = {
   Backspace: "back",
 };
 
-viewport.addEventListener("keydown", (event) => {
-  if (event.altKey || event.ctrlKey || event.metaKey) return;
-  if (event.key === "Home") {
-    event.preventDefault();
-    treeView.recenter();
-    return;
-  }
-  const command = KEY_COMMANDS[event.key];
-  if (!command) return;
-  event.preventDefault();
-  void send({ type: "navigate", command });
-});
+// Alt 조합: 페이지에서 쓰던 키를 패널 안에서도 그대로 받는다.
+// 포커스가 패널로 옮겨갔다는 이유로 손에 익은 키가 죽으면 안 된다(페이지 쪽은 목록 은유라 ↓ = 다음).
+const PAGE_ALT_KEYS: Record<string, NavigationCommand> = {
+  ArrowDown: "next",
+  ArrowRight: "next",
+  ArrowUp: "previous",
+  ArrowLeft: "previous",
+  Enter: "enter",
+  Backspace: "back",
+};
 
 document.addEventListener("keydown", (event) => {
   // Alt + , = 설정, Alt + . = 도움말. 같은 키로 닫는다.
@@ -104,11 +101,41 @@ document.addEventListener("keydown", (event) => {
     applyIntent("help");
     return;
   }
-  if (event.key !== "/" || event.target instanceof HTMLInputElement) return;
-  if (document.querySelector("dialog[open]")) return; // 모달 뒤의 검색창을 건드리지 않는다
+  // 다이얼로그가 열려 있으면 그 창이 자기 키를 처리한다(Alt+↑/↓ 항목 이동 등).
+  if (document.querySelector("dialog[open]")) return;
+
+  // 검색창 안의 키는 SearchBox가 처리한다(↑↓ = 결과 이동, Esc = 트리로 복귀).
+  const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement;
+  if (typing) return;
+
+  if (event.key === "Escape") {
+    // 어디에 있든 Esc는 그래프로 돌아오는 키다.
+    event.preventDefault();
+    viewport.focus();
+    return;
+  }
+  if (event.key === "/") {
+    event.preventDefault();
+    applyIntent("search");
+    return;
+  }
+  if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (event.key === "Home") {
+    event.preventDefault();
+    treeView.recenter();
+    return;
+  }
+  // 그래프에 포커스가 있든 하단 버튼에 있든 같은 키로 탐색한다.
+  const command = (event.altKey ? PAGE_ALT_KEYS : PANEL_KEYS)[event.key];
+  if (!command) return;
   event.preventDefault();
-  applyIntent("search");
+  void send({ type: "navigate", command });
 });
+
+// 다이얼로그를 닫으면 포커스를 그래프로 돌려놓는다 — 다음 방향키가 바로 탐색이 되게.
+for (const element of document.querySelectorAll("dialog")) {
+  element.addEventListener("close", () => viewport.focus());
+}
 
 // --- 콘텐츠 스크립트 구독 ---
 chrome.runtime.onMessage.addListener((message, sender) => {
@@ -152,6 +179,11 @@ function applyIntent(view: PanelView): void {
   const now = Date.now();
   if (now - lastIntentAt < 400) return;
   lastIntentAt = now;
+
+  // 페이지에서 단축키를 눌렀다면 키보드 포커스가 아직 페이지에 있다. 패널로 끌어온다.
+  // (사이드패널을 포커스시키는 API는 없다. 확장 페이지의 window.focus()로 요청만 해보고,
+  //  Chrome이 무시해도 아래 focus()들이 activeElement를 맞춰 놓으므로 Tab 한 번이면 이어진다.)
+  if (!document.hasFocus()) window.focus();
 
   if (view === "search") {
     settingsDialog.close();

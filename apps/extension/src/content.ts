@@ -395,13 +395,15 @@ function commandFor(event: KeyboardEvent): NavigationCommand | null {
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
+  // 버튼은 뺀다. 링크·버튼을 실행하면 포커스가 거기 남는데, 그때부터 Alt 탐색이 죽으면
+  // "한 번 누르면 더 못 움직이는" 상태가 된다. Alt+방향키는 버튼에서 하는 일이 없어 가로채도 안전하다.
+  // select·listbox 등 방향키가 값을 바꾸는 위젯은 그대로 둔다.
   return (
     target.closest(
       [
         "input",
         "textarea",
         "select",
-        "button",
         '[contenteditable]:not([contenteditable="false"])',
         '[role="textbox"]',
         '[role="searchbox"]',
