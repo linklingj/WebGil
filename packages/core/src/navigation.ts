@@ -106,6 +106,22 @@ export class NavigationEngine {
     return this.setCurrent(current.parent, current.node);
   }
 
+  /**
+   * 외부 지목(사이드패널 검색·클릭, LLM 명령)으로 커서를 특정 노드에 놓는다.
+   * 없는 id면 커서를 그대로 두고 `empty`를 돌려준다 — 스냅샷이 어긋난 뷰의 요청일 수 있다.
+   */
+  moveTo(id: NodeId): NavigationResult {
+    const located = this.locationIndex.get(id);
+    if (!located) return this.emptyResult(this.current);
+    return this.setCurrent(located.node, this.current);
+  }
+
+  /** 현재 커서의 형제 내 위치. 셸이 "3/7"처럼 표시할 때 쓴다. 커서가 없으면 index -1. */
+  get position(): { index: number; count: number } {
+    const located = this.locateCurrent();
+    return { index: located?.index ?? -1, count: located?.parent.children.length ?? 0 };
+  }
+
   /** 기본 시작점(본문 첫 항목 또는 첫 최상위 노드)으로 커서를 되돌린다. */
   reset(): NavigationResult {
     const previous = this.current;

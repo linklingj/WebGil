@@ -8,6 +8,7 @@ import {
   extractTree,
   NavigationEngine,
   refineTree,
+  toSnapshot,
   treeStats,
   treeToText,
   type DocNode,
@@ -18,6 +19,13 @@ import {
 import { ExtensionSource } from "./capture/extension-source.js";
 import { installCommandPalette } from "./llm/command-palette.js";
 import { isAltShiftKey } from "./navigation/shortcuts.js";
+import {
+  isPanelCommandMessage,
+  PANEL_STATE,
+  type PanelCommand,
+  type PanelReply,
+  type PanelState,
+} from "./panel/protocol.js";
 import { TouchNavigationController } from "./navigation/touch-navigation.js";
 import { ElevenLabsSpeechEngine } from "./tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
@@ -50,21 +58,131 @@ let documentTree = scan();
 const actions = new ActionExecutor(source, (id) => navigation?.nodeById(id) ?? null);
 
 // 하위가 없는 노드에서의 Alt+Enter는 활성화로 해석한다(링크·버튼 클릭, 입력칸 포커스).
-async function activate(node: DocNode) {
+// 패널에서 실행한 경우엔 패널이 읽으므로(announce=false) 같은 문장이 두 번 나오지 않는다.
+async function activate(node: DocNode, announce = true): Promise<string> {
   const result = await actions.activate(node.id);
   const message =
     result.status === "executed" ? `${node.text || "항목"} 실행` : result.reason;
   console.log(`[WebGil] ${message}`);
   // 실행 결과는 화면을 못 보는 사용자에게 유일한 피드백이라 반드시 소리로 알린다.
-  void narrator
-    .announce({ text: message, kind: "text", level: node.level }, { detail: "brief" })
-    .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+  if (announce) {
+    void narrator
+      .announce({ text: message, kind: "text", level: node.level }, { detail: "brief" })
+      .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+  }
+  return message;
 }
 
 // SPA 갱신 시 재추출(디바운스는 ExtensionSource 내부).
 source.onMutation(() => {
   console.log("[WebGil] DOM 변경 감지 — 재추출");
   documentTree = scan();
+  publish();
+});
+
+// --- 08 사이드패널 연결 ---
+// 패널은 다른 컨텍스트라 DocNode(핸들 포함)를 그대로 못 받는다. 스냅샷만 보내고 id만 돌려받는다.
+
+/** 패널이 그릴 현재 상태. 트리와 커서를 한 메시지에 묶어 뷰가 항상 일관된 쌍을 보게 한다. */
+function panelState(): PanelState {
+  const position = navigation?.position ?? { index: -1, count: 0 };
+  return {
+    title: document.title,
+    tree: toSnapshot(documentTree),
+    cursorId: navigation?.current?.id ?? null,
+    index: position.index,
+    count: position.count,
+  };
+}
+
+let publishTimer: number | undefined;
+
+/** mutation 폭주에도 스냅샷 전송이 늘어지지 않게 한 틱으로 묶는다. 패널이 닫혀 있으면 수신자가 없다(정상). */
+function publish(): void {
+  if (publishTimer !== undefined) return;
+  publishTimer = window.setTimeout(() => {
+    publishTimer = undefined;
+    void chrome.runtime.sendMessage({ type: PANEL_STATE, state: panelState() }).catch(() => {});
+  }, 100);
+}
+
+async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
+  let message: string | undefined;
+  let awaitingConfirm = false;
+  let speak = false;
+  switch (command.type) {
+    case "sync":
+      break;
+    case "navigate":
+      handleNavigation(command.command);
+      break;
+    case "moveTo": {
+      const result = navigation!.moveTo(command.id);
+      if (result.node) {
+        source.highlight(result.node.id);
+        void narrator
+          .announce(result.node, { index: result.index, count: result.count })
+          .catch((error) => console.warn("[WebGil] 낭독 실패", error));
+      }
+      break;
+    }
+    case "activate": {
+      const node = navigation!.nodeById(command.id);
+      // 실행 결과는 패널이 읽는다 — 패널에서 누른 버튼의 결과는 패널에서 들려야 자연스럽다.
+      message = node ? await activate(node, false) : "이미 사라진 항목입니다.";
+      speak = true;
+      break;
+    }
+    case "refine":
+      message = await refineDocumentTree();
+      break;
+    case "ask":
+    case "confirm": {
+      const result = command.type === "ask"
+        ? await runNaturalLanguageCommand(command.input)
+        : await confirmPendingCommand();
+      message = describeDispatch(result);
+      awaitingConfirm = result.status === "confirmationRequired";
+      // 이동·현재 항목 읽기는 dispatch가 이미 낭독했다. 나머지(답변·되묻기·거절·액션 실행)는
+      // 아무도 말하지 않으므로 패널이 읽게 넘긴다 — 화면을 못 보면 이게 유일한 피드백이다.
+      speak = !(result.status === "executed"
+        && (result.command.type === "navigation" || result.command.type === "speech"));
+      break;
+    }
+  }
+  return { type: PANEL_STATE, state: panelState(), message, awaitingConfirm, speak };
+}
+
+/** 명령 처리 결과를 패널 상태 줄 한 줄로. 확인이 필요한 액션은 문장으로 되묻는다. */
+function describeDispatch(result: Awaited<ReturnType<typeof runNaturalLanguageCommand>>): string {
+  switch (result.status) {
+    case "executed":
+      return result.navigation?.node?.text ? `${result.navigation.node.text}(으)로 이동했습니다.` : "명령을 실행했습니다.";
+    case "confirmationRequired":
+      return `${result.confirmation.summary} — 한 번 더 Enter를 누르면 실행합니다.`;
+    case "message":
+      return result.text;
+    case "rejected":
+      return result.reason;
+  }
+}
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (!isPanelCommandMessage(message)) return;
+  void handlePanelCommand(message.command)
+    .then(sendResponse)
+    .catch((error: unknown) => {
+      const text = error instanceof Error ? error.message : "명령을 처리하지 못했습니다.";
+      // 오류 문구도 소리로 나가야 사용자가 실패를 안다.
+      sendResponse({
+        type: PANEL_STATE,
+        state: panelState(),
+        message: text,
+        awaitingConfirm: false,
+        speak: true,
+      } satisfies PanelReply);
+    });
+  return true;
 });
 
 // 키보드 폴백(Shift/Control/Meta 없이 Alt만 사용):
@@ -113,6 +231,7 @@ async function refineDocumentTree(): Promise<string> {
     const stats = treeStats(result.tree);
     console.log(`[WebGil] 트리 재구성: 최상위 ${stats.topLevel}개 · 노드 ${stats.total}개`, stats.byKind);
     console.log(treeToText(result.tree));
+    publish();
     return `문서 구조를 다시 정리했습니다. 최상위 ${stats.topLevel}개 항목입니다.`;
   }
   console.log(`[WebGil] 트리 재구성 건너뜀 — ${result.reason}`);
@@ -166,6 +285,8 @@ document.addEventListener("keydown", (event) => {
 function handleNavigation(command: NavigationCommand): void {
   const result = navigation!.handle(command);
   if (result.node) source.highlight(result.node.id);
+  // 키보드·제스처로 움직여도 패널의 카메라가 따라오게 커서 변화를 알린다.
+  publish();
 
   // 더 들어갈 하위가 없다 = 이 노드가 곧 목적지. 진입 대신 실행한다.
   if (command === "enter" && result.status === "boundary" && result.node) {
@@ -274,13 +395,15 @@ function commandFor(event: KeyboardEvent): NavigationCommand | null {
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
+  // 버튼은 뺀다. 링크·버튼을 실행하면 포커스가 거기 남는데, 그때부터 Alt 탐색이 죽으면
+  // "한 번 누르면 더 못 움직이는" 상태가 된다. Alt+방향키는 버튼에서 하는 일이 없어 가로채도 안전하다.
+  // select·listbox 등 방향키가 값을 바꾸는 위젯은 그대로 둔다.
   return (
     target.closest(
       [
         "input",
         "textarea",
         "select",
-        "button",
         '[contenteditable]:not([contenteditable="false"])',
         '[role="textbox"]',
         '[role="searchbox"]',

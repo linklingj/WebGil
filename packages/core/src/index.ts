@@ -16,8 +16,8 @@ export { applyRefinePlan, refineTree } from "./tree-refine.js";
 export type { RefineOptions, RefinePlan, RefinePlanNode, RefineResult } from "./tree-refine.js";
 
 // 03 문서 트리 모델 — 코어 전 엔진이 공유하는 스키마 + 읽기 헬퍼.
-export { indexById, treeStats, treeToText } from "./tree.js";
-export type { DocNode, NodeKind, RegionRole, TreeStats } from "./tree.js";
+export { indexById, searchTree, toSnapshot, treeStats, treeToText } from "./tree.js";
+export type { DocNode, NodeKind, RegionRole, SearchHit, SnapshotNode, TreeStats } from "./tree.js";
 
 // 04 기본 네비게이션 엔진.
 export { NavigationEngine } from "./navigation.js";

@@ -330,6 +330,15 @@ export function extractTree(doc: Document): DocNode {
   const stack: { node: DocNode; sl: number }[] = [{ node: root, sl: -1 }];
   const top = () => stack[stack.length - 1];
 
+  // 링크·버튼 안의 내용은 그 링크·버튼의 **자식**이다. 형제로 흩어지면
+  // "버튼"과 "버튼 안 글"이 같은 줄에 나란히 놓여, 무엇을 누르는지 알 수 없게 된다.
+  // 문서 순서로 훑으므로 조상은 항상 먼저 나온다 → 여기 담아 두면 자손이 되돌아 찾는다.
+  const interactiveHosts = new Map<Element, DocNode>();
+  const hostFor = (el: Element): DocNode | undefined => {
+    const ancestor = el.parentElement?.closest(INTERACTIVE_SELECTOR);
+    return ancestor ? interactiveHosts.get(ancestor) : undefined;
+  };
+
   const candidates = `${SIGNIFICANT_SELECTOR},${GENERIC_TEXT_SELECTOR}`;
   for (const el of doc.querySelectorAll<HTMLElement>(candidates)) {
     if (el.closest(`[${UI_ROOT_ATTR}]`)) continue;
@@ -343,6 +352,7 @@ export function extractTree(doc: Document): DocNode {
     // 표 셀은 table 전용 경로에서 행·열 헤더와 함께 처리한다.
     if (el.closest("table")) continue;
 
+    const host = hostFor(el);
     const role = roleOf(el);
     const kind = kindOf(role);
     if (!kind) {
@@ -352,6 +362,13 @@ export function extractTree(doc: Document): DocNode {
       const block = blockText(el);
       // 링크·버튼만 든 목록 껍데기는 버린다. 그 안의 링크는 자기 노드로 이미 들어온다.
       if (block.proseLength < (generic ? MIN_GENERIC_PROSE : MIN_PROSE)) continue;
+      if (host) {
+        // 라벨을 그대로 되풀이하는 한 덩어리는 버린다 — 버튼 이름이 곧 그 글이라
+        // 자식으로 두면 같은 말을 두 번 하고, 눌러야 할 노드에서 한 단계 더 들어가야 한다.
+        if (collapse(block.text) === collapse(host.text)) continue;
+        host.children.push(leafNode(el, "text", block.text));
+        continue;
+      }
       top().node.children.push(leafNode(el, "text", block.text));
       continue;
     }
@@ -374,6 +391,12 @@ export function extractTree(doc: Document): DocNode {
     const name = clip(accessibleName(el));
     if (kind === "heading") {
       if (!name) continue; // 낭독할 게 없는 빈 헤딩은 버린다.
+      // 버튼·링크 안의 헤딩은 그 조작 항목의 제목이지 페이지의 새 섹션이 아니다.
+      // 섹션 스택에 올리면 뒤따르는 본문이 전부 버튼 밑으로 빨려 들어간다.
+      if (host) {
+        if (collapse(name) !== collapse(host.text)) host.children.push(leafNode(el, "heading", name));
+        continue;
+      }
       const level = headingLevel(el) ?? 2;
       while (stack.length > 1 && top().sl >= level) stack.pop();
       const h = leafNode(el, "heading", name);
@@ -381,7 +404,9 @@ export function extractTree(doc: Document): DocNode {
       stack.push({ node: h, sl: level });
     } else {
       if (!name && kind !== "input") continue; // 이름 없는 링크/버튼(아이콘 등)은 낭독 불가 → 버린다.
-      top().node.children.push(leafNode(el, kind, name));
+      const node = leafNode(el, kind, name);
+      (host ?? top().node).children.push(node);
+      interactiveHosts.set(el, node);
     }
   }
 
