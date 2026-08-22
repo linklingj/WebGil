@@ -26,10 +26,12 @@ class FakeAudio {
   pause(): void {}
 }
 
+// navigator는 Node 20엔 없고 26엔 getter만 있는 접근자다 → assign이 아니라 defineProperty로 심는다.
+Object.defineProperty(globalThis, "navigator", { configurable: true, value: window.navigator });
+
 const noopEvent = { addListener: () => {} };
 Object.assign(globalThis, {
   window,
-  navigator: window.navigator,
   document,
   HTMLElement: window.HTMLElement,
   HTMLButtonElement: window.HTMLButtonElement,
