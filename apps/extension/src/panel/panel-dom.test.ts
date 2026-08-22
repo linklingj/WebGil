@@ -116,6 +116,40 @@ test("트리 뷰: 직접 줌하면 추적을 멈추되, 커서가 움직이면 �
   });
 });
 
+test("트리 뷰: 커서는 그대로여도 트리가 바뀌면 카메라가 새 자리를 잡는다", () => {
+  withPanel((dom) => {
+    const viewport = dom.window.document.querySelector<HTMLElement>("#viewport")!;
+    const camera = viewport.querySelector<HTMLElement>(".camera")!;
+    const view = new TreeView(viewport, { onSelect: () => {}, onActivate: () => {} });
+
+    view.render(tree, "공지");
+    // 사용자가 직접 화면을 잡아 자동 추적이 꺼진 상태를 만든다.
+    viewport.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: -300, clientX: 200, clientY: 300, bubbles: true }));
+    const parked = camera.style.transform;
+    assert.equal(view.isFollowing, false);
+
+    // SPA 갱신으로 앞에 형제가 하나 늘면, 같은 "공지"도 다른 좌표에 놓인다.
+    const grown = node("root", [node("본문", [node("새 글"), node("공지"), node("소식")]), node("메뉴")]);
+    view.render(grown, "공지");
+
+    assert.equal(view.isFollowing, true, "멈춰 있던 카메라가 엉뚱한 자리를 비추게 두지 않는다");
+    assert.notEqual(camera.style.transform, parked);
+  });
+});
+
+test("트리 뷰: 스냅샷에 없는 커서면 카메라를 아무 데나 옮기지 않는다", () => {
+  withPanel((dom) => {
+    const viewport = dom.window.document.querySelector<HTMLElement>("#viewport")!;
+    const camera = viewport.querySelector<HTMLElement>(".camera")!;
+    const view = new TreeView(viewport, { onSelect: () => {}, onActivate: () => {} });
+
+    view.render(tree, "공지");
+    const before = camera.style.transform;
+    view.render(tree, "사라진-노드");
+    assert.equal(camera.style.transform, before, "다음 스냅샷이 맞춰줄 때까지 그대로 둔다");
+  });
+});
+
 test("검색창: 일치 결과는 목록으로, ?로 시작하면 자연어 명령으로 넘긴다", () => {
   withPanel((dom) => {
     const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;

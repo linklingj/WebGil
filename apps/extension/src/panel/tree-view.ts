@@ -36,6 +36,8 @@ export class TreeView {
   private readonly zoomBehavior: ZoomBehavior<HTMLElement, unknown>;
   private positions = new Map<string, Rendered>();
   private cursorId: string | null = null;
+  /** 지난 렌더에서 커서가 놓였던 좌표. 트리가 바뀌어 자리가 옮겨졌는지 판단한다. */
+  private lastSpot?: Rendered;
   /** 사용자가 직접 팬·줌하면 자동 카메라를 놓아준다. Home으로 되찾는다. */
   private following = true;
 
@@ -95,7 +97,15 @@ export class TreeView {
     // 커서가 움직였으면 카메라도 반드시 따라간다.
     // 직접 팬·줌한 화면은 "그 자리를 들여다보는 동안"만 유지된다 — 다음 이동에서 되돌아온다.
     // (트랙패드 두 손가락 스크롤이 휠로 들어와 추적이 꺼지는 일이 잦아서, 이동이 곧 복귀 신호다.)
-    if (moved) this.setFollowing(true);
+    //
+    // 커서가 그대로여도 **트리가 바뀌면 같은 노드의 좌표가 달라진다**(형제가 늘거나 창이 밀리거나
+    // 상위 구조가 재구성될 때). 그 경우 멈춰 있던 카메라는 이제 엉뚱한 자리를 비추므로 같이 따라간다.
+    const spot = this.cursorId ? this.positions.get(this.cursorId) : undefined;
+    const shifted = spot !== undefined && this.lastSpot !== undefined
+      && (spot.x !== this.lastSpot.x || spot.y !== this.lastSpot.y);
+    this.lastSpot = spot;
+
+    if (moved || shifted) this.setFollowing(true);
     if (this.following) this.centerOnCursor();
   }
 
@@ -153,8 +163,10 @@ export class TreeView {
   }
 
   private centerOnCursor(): void {
-    const target = this.cursorId ? this.positions.get(this.cursorId) : undefined;
-    const spot = target ?? this.positions.values().next().value;
+    // 커서가 있는데 화면에 없다면(스냅샷과 커서가 어긋난 순간) 아무 데나 비추지 않고 그대로 둔다.
+    // 다음 스냅샷이 곧 맞춰 준다 — 잘못된 자리로 튀는 것보다 잠깐 멈춰 있는 편이 낫다.
+    if (this.cursorId && !this.positions.has(this.cursorId)) return;
+    const spot = this.cursorId ? this.positions.get(this.cursorId) : this.positions.values().next().value;
     if (!spot) return;
 
     const { width, height } = this.viewport.getBoundingClientRect();
