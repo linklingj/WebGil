@@ -3,6 +3,7 @@
 // 조작은 id를 실어 되돌려 보낸다. (docs/01_SYSTEM/08)
 import type { NavigationCommand, SnapshotNode } from "@webgil/core";
 import "./panel.css";
+import { isAltKey } from "../navigation/shortcuts.js";
 import { createHelpDialog } from "./help.js";
 import {
   isPanelStateMessage,
@@ -87,6 +88,20 @@ viewport.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  // Alt + , = 설정, Alt + . = 도움말. 같은 키로 닫는다.
+  // macOS는 Option을 누르면 event.key가 합성 문자(≤ ≥)로 바뀌므로 물리 키(code)로 판정한다.
+  if (isAltKey(event, "Comma")) {
+    event.preventDefault();
+    helpDialog.close();
+    settingsDialog.toggle();
+    return;
+  }
+  if (isAltKey(event, "Period")) {
+    event.preventDefault();
+    settingsDialog.close();
+    helpDialog.toggle();
+    return;
+  }
   if (event.key !== "/" || event.target instanceof HTMLInputElement) return;
   if (document.querySelector("dialog[open]")) return; // 모달 뒤의 검색창을 건드리지 않는다
   event.preventDefault();

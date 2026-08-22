@@ -38,6 +38,10 @@ export interface DialogVoiceOptions {
 export interface DialogVoice {
   /** 창을 열고 안내 + 첫 항목을 한 문장으로 읽는다. showModal도 여기서 부른다. */
   open(): void;
+  /** 같은 단축키로 열고 닫는다. 닫힘 안내는 close 이벤트가 낸다. */
+  toggle(): void;
+  /** 열려 있으면 닫는다. 다른 창을 열기 전에 모달이 겹치지 않게 쓴다. */
+  close(): void;
 }
 
 /**
@@ -85,6 +89,13 @@ export function attachDialogVoice(dialog: HTMLDialogElement, options: DialogVoic
       speak(
         `${options.label} 창입니다. Alt와 위아래 방향키로 항목을 이동합니다. ${first ? options.describe(first) : ""}`,
       );
+    },
+    toggle() {
+      if (dialog.open) dialog.close();
+      else this.open();
+    },
+    close() {
+      if (dialog.open) dialog.close();
     },
   };
 }

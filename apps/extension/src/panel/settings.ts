@@ -37,6 +37,17 @@ export class SettingsDialog {
     void this.load().then(() => this.voice.open());
   }
 
+  /** 같은 단축키(Alt + ,)로 열고 닫는다. */
+  toggle(): void {
+    if (this.dialog.open) this.dialog.close();
+    else this.open();
+  }
+
+  /** 도움말을 열기 전에 부른다 — 모달 두 개가 겹치지 않게. */
+  close(): void {
+    if (this.dialog.open) this.dialog.close();
+  }
+
   private async load(): Promise<void> {
     const stored = await chrome.storage.local.get([LLM_STORAGE_KEY, TTS_STORAGE_KEY]);
     const config = stored[LLM_STORAGE_KEY];

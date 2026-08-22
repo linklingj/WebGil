@@ -12,6 +12,11 @@ export function isAltShiftKey(event: KeyboardEvent, code: string): boolean {
   return event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === code;
 }
 
+/** Alt(Option) + 문자 단축키 판정. 이유는 위와 같다 — 문자는 `code`(물리 키)로만 본다. */
+export function isAltKey(event: KeyboardEvent, code: string): boolean {
+  return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === code;
+}
+
 /**
  * 사용자에게 보여줄 조작 목록의 **단일 출처**. 도움말 다이얼로그(08)가 이걸 그대로 렌더한다.
  * 표를 따로 적어두면 실제 동작과 어긋나므로, 새 단축키를 붙일 땐 여기부터 고친다.
@@ -32,6 +37,8 @@ export const SHORTCUTS: ReadonlyArray<{ group: string; keys: string; what: strin
   { group: "패널", keys: "/", what: "검색창으로 이동" },
   { group: "패널", keys: "검색창에서 ?", what: "자연어 명령으로 실행" },
   { group: "패널", keys: "Esc", what: "검색창에서 트리로 돌아가기" },
+  { group: "패널", keys: "Alt + ,", what: "설정 열기 / 닫기" },
+  { group: "패널", keys: "Alt + .", what: "도움말 열기 / 닫기" },
   { group: "설정·도움말", keys: "Alt + ↑ / ↓", what: "항목 이동 — 옮긴 항목을 음성으로 읽어준다" },
   { group: "설정·도움말", keys: "Tab", what: "항목 이동 (같은 안내를 읽어준다)" },
   { group: "설정·도움말", keys: "Esc", what: "창 닫기" },

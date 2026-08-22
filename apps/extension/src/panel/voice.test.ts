@@ -125,6 +125,19 @@ test("창을 닫으면 닫혔다고 알린다", async () => {
   assert.deepEqual(await flush(), ["설정 창을 닫았습니다."]);
 });
 
+test("toggle: 같은 호출로 열고 닫으며, 닫힘도 안내한다", async () => {
+  voice.toggle();
+  assert.equal(dialog.open, true);
+  assert.match((await flush())[0], /설정 창입니다/);
+
+  voice.toggle();
+  assert.equal(dialog.open, false);
+  assert.deepEqual(await flush(), ["설정 창을 닫았습니다."]);
+
+  voice.close();
+  assert.deepEqual(await flush(), [], "이미 닫혀 있으면 아무 말도 하지 않는다");
+});
+
 test("검색 결과 사이를 오르내리면 지금 고른 결과를 읽는다", async () => {
   const { SearchBox } = await import("./search.js");
   const header = dom.window.document.querySelector<HTMLElement>("#searchBar")!;

@@ -4,7 +4,7 @@
 import { SHORTCUTS } from "../navigation/shortcuts.js";
 import { attachDialogVoice, type DialogVoice } from "./voice.js";
 
-export function createHelpDialog(dialog: HTMLDialogElement): { open(): void } {
+export function createHelpDialog(dialog: HTMLDialogElement): DialogVoice {
   render(dialog);
   const voice: DialogVoice = attachDialogVoice(dialog, {
     label: "도움말",
@@ -12,7 +12,7 @@ export function createHelpDialog(dialog: HTMLDialogElement): { open(): void } {
     describe: (element) => element.dataset.speech ?? element.getAttribute("aria-label") ?? element.textContent?.trim() ?? "",
   });
 
-  return { open: () => voice.open() };
+  return voice;
 }
 
 function render(dialog: HTMLDialogElement): void {

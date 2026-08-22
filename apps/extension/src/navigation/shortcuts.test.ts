@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { JSDOM } from "jsdom";
-import { isAltShiftKey } from "./shortcuts.js";
+import { isAltKey, isAltShiftKey } from "./shortcuts.js";
 
 const { window } = new JSDOM("");
 const KeyboardEvent = window.KeyboardEvent;
@@ -33,4 +33,17 @@ test("다른 물리 키나 수식키 조합은 걸리지 않는다", () => {
   // 브라우저 단축키와 겹치지 않도록 Ctrl/Cmd가 섞이면 무시한다.
   assert.equal(isAltShiftKey(keydown({ code: "KeyR", ...alt, ctrlKey: true }), "KeyR"), false);
   assert.equal(isAltShiftKey(keydown({ code: "KeyR", ...alt, metaKey: true }), "KeyR"), false);
+});
+
+test("isAltKey: Option + 쉼표·마침표를 물리 키로 알아본다", () => {
+  // macOS에서 Option+, 는 key가 "≤"로 온다. code는 레이아웃과 무관하다.
+  assert.equal(isAltKey(keydown({ key: "≤", code: "Comma", altKey: true }), "Comma"), true);
+  assert.equal(isAltKey(keydown({ key: ".", code: "Period", altKey: true }), "Period"), true);
+
+  assert.equal(isAltKey(keydown({ code: "Comma" }), "Comma"), false, "Alt 없이는 안 걸린다");
+  assert.equal(isAltKey(keydown({ code: "Comma", altKey: true }), "Period"), false, "다른 키");
+  // Shift/Ctrl/Cmd가 섞이면 다른 단축키다(Alt+Shift 조합은 페이지 쪽에서 쓴다).
+  assert.equal(isAltKey(keydown({ code: "Comma", altKey: true, shiftKey: true }), "Comma"), false);
+  assert.equal(isAltKey(keydown({ code: "Comma", altKey: true, ctrlKey: true }), "Comma"), false);
+  assert.equal(isAltKey(keydown({ code: "Comma", altKey: true, metaKey: true }), "Comma"), false);
 });
