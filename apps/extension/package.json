@@ -7,7 +7,7 @@
   "scripts": {
     "build": "node ./scripts/build.mjs",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/capture/extension-source.test.ts src/tts/web-speech-engine.test.ts src/llm/command-palette.test.ts src/navigation/touch-navigation.test.ts src/navigation/shortcuts.test.ts src/panel/tree-view.test.ts src/panel/panel-dom.test.ts src/panel/voice.test.ts src/panel/panel-keys.test.ts"
+    "test": "node --import tsx --test src/capture/extension-source.test.ts src/tts/web-speech-engine.test.ts src/llm/command-palette.test.ts src/navigation/guidance.test.ts src/navigation/touch-navigation.test.ts src/navigation/shortcuts.test.ts src/panel/tree-view.test.ts src/panel/panel-dom.test.ts src/panel/voice.test.ts src/panel/panel-keys.test.ts"
   },
   "dependencies": {
     "@webgil/core": "workspace:*",

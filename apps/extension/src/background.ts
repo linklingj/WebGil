@@ -4,7 +4,12 @@ import {
   type ProviderConfig,
 } from "@webgil/core";
 
-import { PANEL_VIEW_KEY, type PanelView } from "./panel/protocol.js";
+import {
+  NAVIGATION_GUIDANCE_STORAGE_KEY,
+  isNavigationGuidance,
+  type NavigationGuidance,
+} from "./navigation/guidance.js";
+import { PANEL_COMMAND, PANEL_VIEW_KEY, type PanelView } from "./panel/protocol.js";
 
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
@@ -28,8 +33,18 @@ const COMMAND_VIEWS: Record<string, PanelView> = {
 };
 
 chrome.commands.onCommand.addListener((command, tab) => {
+  if (command === "toggle-navigation-guidance") {
+    scheduleNavigationGuidanceToggle(tab?.id);
+    return;
+  }
   const view = COMMAND_VIEWS[command];
   if (view) showPanel(view, tab?.windowId);
+});
+
+// 설정 창에서 바꾼 값도 이미 열려 있는 모든 페이지에 즉시 전파한다.
+chrome.storage.local.onChanged.addListener((changes) => {
+  const guidance = changes[NAVIGATION_GUIDANCE_STORAGE_KEY]?.newValue;
+  if (isNavigationGuidance(guidance)) void broadcastNavigationGuidance(guidance);
 });
 
 /** 패널을 열고(닫혀 있었다면) 무엇을 띄울지 남긴다. open()을 먼저 불러야 제스처가 살아 있다. */
@@ -56,6 +71,16 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
       .catch((error: unknown) => {
         const text = error instanceof Error ? error.message : "ElevenLabs 음성 요청에 실패했습니다.";
+        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
+      });
+    return true;
+  }
+
+  if (isNavigationGuidanceGetMessage(message)) {
+    void readNavigationGuidance()
+      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
+      .catch((error: unknown) => {
+        const text = error instanceof Error ? error.message : "탐색 안내 설정을 읽지 못했습니다.";
         sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
       });
     return true;
@@ -96,6 +121,48 @@ async function synthesizeWithElevenLabs(text: string): Promise<string> {
   return `data:${response.headers.get("content-type") ?? "audio/mpeg"};base64,${toBase64(bytes)}`;
 }
 
+async function readNavigationGuidance(): Promise<NavigationGuidance> {
+  const stored = await chrome.storage.local.get(NAVIGATION_GUIDANCE_STORAGE_KEY);
+  const guidance = stored[NAVIGATION_GUIDANCE_STORAGE_KEY];
+  return isNavigationGuidance(guidance) ? guidance : "compact";
+}
+
+let navigationGuidanceQueue: Promise<void> = Promise.resolve();
+
+/** 빠른 연속 입력도 누른 횟수대로 처리한다. 실패는 다음 토글을 막지 않는다. */
+function scheduleNavigationGuidanceToggle(tabId: number | undefined): void {
+  navigationGuidanceQueue = navigationGuidanceQueue
+    .then(() => toggleNavigationGuidance(tabId))
+    .catch((error: unknown) => console.warn("[WebGil] 탐색 안내를 바꾸지 못했습니다", error));
+}
+
+/** 브라우저 단축키는 Background에서 저장하고 현재 탭에는 즉시 음성 안내를 보낸다. */
+async function toggleNavigationGuidance(tabId: number | undefined): Promise<void> {
+  const current = await readNavigationGuidance();
+  const guidance: NavigationGuidance = current === "detailed" ? "compact" : "detailed";
+  await chrome.storage.local.set({ [NAVIGATION_GUIDANCE_STORAGE_KEY]: guidance });
+  if (tabId === undefined) return;
+  await chrome.tabs.sendMessage(tabId, {
+    type: PANEL_COMMAND,
+    command: { type: "setNavigationGuidance", guidance, announce: true },
+  }).catch(() => {});
+}
+
+/** content script가 있는 모든 탭의 메모리 설정을 저장값과 맞춘다. */
+async function broadcastNavigationGuidance(guidance: NavigationGuidance): Promise<void> {
+  const tabs = await chrome.tabs.query({});
+  await Promise.all(
+    tabs
+      .filter((tab): tab is ChromeTab & { id: number } => tab.id !== undefined)
+      .map((tab) =>
+        chrome.tabs.sendMessage(tab.id, {
+          type: PANEL_COMMAND,
+          command: { type: "setNavigationGuidance", guidance },
+        }).catch(() => {}),
+      ),
+  );
+}
+
 function isCompleteMessage(value: unknown): value is { type: "webgil.llm.complete"; request: LLMRequest } {
   if (!isRecord(value) || value.type !== "webgil.llm.complete") return false;
   const request = value.request;
@@ -109,6 +176,10 @@ function isCompleteMessage(value: unknown): value is { type: "webgil.llm.complet
 
 function isElevenLabsSpeechMessage(value: unknown): value is { type: "webgil.tts.elevenlabs.speak"; text: string } {
   return isRecord(value) && value.type === "webgil.tts.elevenlabs.speak" && typeof value.text === "string";
+}
+
+function isNavigationGuidanceGetMessage(value: unknown): value is { type: "webgil.navigation-guidance.get" } {
+  return isRecord(value) && value.type === "webgil.navigation-guidance.get";
 }
 
 function isProviderConfig(value: unknown): value is ProviderConfig {

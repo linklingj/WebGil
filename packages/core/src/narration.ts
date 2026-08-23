@@ -32,7 +32,7 @@ export function formatNarration(target: NarrationTarget, context: NarrationConte
   if (context.detail === "brief") return text;
 
   // 기본 이동은 내용 중심으로 짧게 읽는다. 위치 정보는 필요할 때만 full로 요청한다.
-  const sentences = [`${withSentenceEnding(text)} ${kind}입니다.`];
+  const sentences = [target.kind === "text" ? withSentenceEnding(text) : `${withSentenceEnding(text)} ${kind}입니다.`];
   if (context.detail === "full") {
     // DocNode.level은 H1~H6 값이 아니라 문서 트리의 깊이다.
     if (target.kind === "heading") sentences.push(`${nativeOrdinal(target.level)} 계층입니다.`);

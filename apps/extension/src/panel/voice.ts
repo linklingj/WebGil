@@ -111,6 +111,7 @@ export function describeFormControl(dialog: HTMLElement, element: HTMLElement): 
     return `${label}, 현재 ${element.selectedOptions[0]?.textContent?.trim() ?? "선택 없음"}`;
   }
   if (element instanceof HTMLInputElement) {
+    if (element.type === "checkbox") return `${label}, ${element.checked ? "켜짐" : "꺼짐"}`;
     if (element.type === "password") return `${label}, ${element.value ? "저장된 값 있음" : "비어 있음"}`;
     return `${label}, ${element.value || "비어 있음"}`;
   }

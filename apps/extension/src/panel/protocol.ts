@@ -2,11 +2,13 @@
 // 패널은 페이지와 다른 컨텍스트라 DOM 핸들을 주고받을 수 없다. 오가는 건 스냅샷과 id뿐이다.
 // (docs/01_SYSTEM/08 "패널 ↔ 페이지 통신")
 import type { NavigationCommand, SnapshotNode } from "@webgil/core";
+import type { NavigationGuidance } from "../navigation/guidance.js";
 
 /** 패널 → 콘텐츠. 전부 id 아니면 열거값이다 — 노드 객체는 넘어가지 않는다. */
 export type PanelCommand =
   | { type: "sync" }
   | { type: "navigate"; command: NavigationCommand }
+  | { type: "setNavigationGuidance"; guidance: NavigationGuidance; announce?: boolean }
   | { type: "moveTo"; id: string }
   | { type: "activate"; id: string }
   | { type: "refine" }

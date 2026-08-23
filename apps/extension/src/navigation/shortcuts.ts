@@ -27,6 +27,7 @@ export const SHORTCUTS: ReadonlyArray<{ group: string; keys: string; what: strin
   { group: "어디서나", keys: "Alt + ,", what: "설정 열기 / 닫기" },
   { group: "어디서나", keys: "Alt + .", what: "도움말 열기 / 닫기" },
   { group: "어디서나", keys: "Alt + Shift + F", what: "패널 검색창으로 이동" },
+  { group: "어디서나", keys: "Alt + Shift + G", what: "탐색 안내 켜기 / 끄기" },
   { group: "페이지", keys: "Alt + ↓ / →", what: "같은 레벨 다음 항목" },
   { group: "페이지", keys: "Alt + ↑ / ←", what: "같은 레벨 이전 항목" },
   { group: "페이지", keys: "Alt + Enter", what: "하위 진입 (하위가 없으면 실행)" },
