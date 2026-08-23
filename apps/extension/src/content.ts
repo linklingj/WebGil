@@ -300,7 +300,12 @@ function handleNavigation(command: NavigationCommand): void {
     );
     // 낭독 실패가 커서 이동을 막지 않도록 오류는 로그로만 남긴다.
     void narrator
-      .announce(result.node, { index: result.index, count: result.count })
+      .announce(result.node, {
+        index: result.index,
+        count: result.count,
+        // 일반 좌우 이동은 짧게, 계층을 실제로 드나들 때만 위치를 자세히 알린다.
+        detail: command === "enter" || command === "back" ? "full" : undefined,
+      })
       .catch((error) => console.warn("[WebGil] 낭독 실패", error));
   } else if (result.status === "boundary") {
     console.log("[WebGil] 더 이동할 수 없는 경계입니다.");

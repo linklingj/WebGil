@@ -12,7 +12,7 @@ const LARGE_UNITS = ["", "만", "억", "조", "경"];
  * - 일반 수: `12` → `십이`, `2026` → `이천이십육`
  * - 날짜·금액·퍼센트·소수·서수는 단위를 읽기 좋은 말로 분리한다.
  * - 전화번호·사업자번호 같은 하이픈 식별자는 숫자를 하나씩 읽는다.
- * - URL·이메일·버전 문자열은 기술 식별자라 변환하지 않는다.
+ * - URL·이메일·버전·경로·파일명은 기술 식별자라 변환하지 않는다.
  */
 export function normalizeKoreanNumberSpeech(text: string): string {
   const protectedParts: string[] = [];
@@ -24,7 +24,7 @@ export function normalizeKoreanNumberSpeech(text: string): string {
   };
 
   let result = text.replace(
-    /https?:\/\/[^\s,]+|www\.[^\s,]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:[A-Za-z]+\d+|\d+)(?:\.\d+){2,}/g,
+    /https?:\/\/[^\s,]+|www\.[^\s,]+|[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|(?:[A-Za-z]+\d+|\d+)(?:\.\d+){2,}|(?:[A-Za-z]:\\\\|\\\\\\\\)[^\s,]+|(?:~|(?<![A-Za-z0-9]))\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+|[A-Za-z][A-Za-z0-9_-]*\.[A-Za-z0-9]{1,8}/g,
     protect,
   );
 
@@ -72,11 +72,42 @@ export function normalizeKoreanNumberSpeech(text: string): string {
     /(?<![A-Za-z0-9_])-?\d(?:\d|,(?=\d))*(?:\.\d+)?(?![A-Za-z0-9_])/g,
     (number: string) => speakNumber(number),
   );
+  result = normalizeSpeechSymbols(result);
 
   return result.replace(/\uE000([\uE100-\uF8FF])\uE001/g, (_match, marker: string) => {
     const index = marker.codePointAt(0)! - 0xe100;
     return protectedParts[index] ?? "";
   });
+}
+
+/**
+ * 화면 표현용 특수문자를 TTS가 안정적으로 읽을 수 있는 한국어 말로 바꾼다.
+ * URL·이메일·버전·경로·파일명은 위 보호 토큰에 들어 있으므로 이 단계에서 변형되지 않는다.
+ */
+function normalizeSpeechSymbols(text: string): string {
+  return text
+    .replace(/\r?\n+/g, ". ")
+    .replace(/…/g, ". ")
+    .replace(/→/g, " 다음 ")
+    .replace(/←/g, " 이전 ")
+    .replace(/↔/g, " 양방향 ")
+    .replace(/⇒/g, " 이어서 ")
+    .replace(/※/g, " 참고 ")
+    .replace(/[•·]/g, ", ")
+    .replace(/\+/g, " 플러스 ")
+    .replace(/\//g, " 슬래시 ")
+    .replace(/_/g, " 밑줄 ")
+    .replace(/#/g, " 샵 ")
+    .replace(/@/g, " 골뱅이 ")
+    .replace(/&/g, " 앤드 ")
+    .replace(/\*/g, " 별표 ")
+    .replace(/=/g, " 이퀄 ")
+    .replace(/\|/g, " 세로줄 ")
+    // 괄호는 보통 보충 설명의 경계일 뿐이라 읽으면 문장 흐름을 과하게 끊는다.
+    .replace(/[()[\]{}]/g, " ")
+    .replace(/-/g, " 하이픈 ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function speakNumber(value: string): string {

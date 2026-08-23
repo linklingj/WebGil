@@ -21,10 +21,22 @@ class RecordingTTS implements TTSEngine {
   }
 }
 
-test("노드 종류·레벨·같은 레벨 위치를 낭독 문구에 담는다", () => {
+test("기본 이동은 짧게 읽고, 상세 모드에서만 계층·위치를 자연스럽게 안내한다", () => {
   assert.equal(
     formatNarration({ text: "소개", kind: "heading", level: 2 }, { index: 1, count: 3 }),
-    "소개, 제목, 계층 2, 2번 항목, 전체 3개",
+    "소개. 제목입니다.",
+  );
+  assert.equal(
+    formatNarration({ text: "소개", kind: "heading", level: 3 }, { detail: "full", index: 8, count: 14 }),
+    "소개. 제목입니다. 세 번째 계층입니다. 현재 아홉 번째 항목입니다. 이 계층에는 총 열네 개 항목이 있습니다.",
+  );
+  assert.equal(
+    formatNarration({ text: "소개입니다.", kind: "heading", level: 1 }),
+    "소개입니다. 제목입니다.",
+  );
+  assert.equal(
+    formatNarration({ text: "목록", kind: "group", level: 1 }, { detail: "full", index: 99, count: 100 }),
+    "목록. 그룹입니다. 현재 100 번째 항목입니다. 이 계층에는 총 100 개 항목이 있습니다.",
   );
   assert.equal(
     formatNarration({ text: "로그인", kind: "link", level: 2 }, { detail: "brief" }),
@@ -38,7 +50,7 @@ test("새 낭독 전에는 반드시 이전 낭독을 중단한다", async () =>
 
   await narrator.announce({ text: "소식", kind: "heading", level: 1 });
   assert.equal(tts.stops, 1);
-  assert.deepEqual(tts.spoken, ["소식, 제목, 계층 일"]);
+  assert.deepEqual(tts.spoken, ["소식. 제목입니다."]);
 
   narrator.stop();
   assert.equal(tts.stops, 2);
@@ -55,8 +67,16 @@ test("숫자를 엔진에 보내기 전 한자어 수사로 통일한다", async
   );
   assert.equal(normalizeKoreanNumberSpeech("https://example.com/v1.2.3 과 test@example.com은 유지"),
     "https://example.com/v1.2.3 과 test@example.com은 유지");
+  assert.equal(
+    normalizeKoreanNumberSpeech("C:\\Users\\webgil\\file_name.pdf와 /usr/local/bin/run.sh는 유지"),
+    "C:\\Users\\webgil\\file_name.pdf와 /usr/local/bin/run.sh는 유지",
+  );
+  assert.equal(
+    normalizeKoreanNumberSpeech("Alt + Enter, A/B, #공지, ※ 필독, 로그인-회원가입, (선택) [필수]"),
+    "Alt 플러스 Enter, A 슬래시 B, 샵 공지, 참고 필독, 로그인 하이픈 회원가입, 선택 필수",
+  );
 
   const tts = new RecordingTTS();
   await new NarrationController(tts).announce({ text: "7", kind: "heading", level: 1 }, { index: 0, count: 12 });
-  assert.deepEqual(tts.spoken, ["칠, 제목, 계층 일, 일 번 항목, 전체 십이 개"]);
+  assert.deepEqual(tts.spoken, ["칠. 제목입니다."]);
 });

@@ -19,7 +19,8 @@ const LANDMARK_SELECTOR =
  * 본문 텍스트 블록 — 낭독할 "읽을 내용"이 트리에 들어오는 유일한 경로.
  * 이게 없으면 문서 트리가 링크·버튼 목록이 되어 헤딩으로 내려가도 읽을 게 없다.
  */
-export const TEXT_BLOCK_SELECTOR = "p,li,dd,dt,blockquote,figcaption,td,pre";
+// 표는 별도 계층으로 만들지 않고 헤더·셀을 DOM 순서대로 본문처럼 읽는다.
+export const TEXT_BLOCK_SELECTOR = "p,li,dd,dt,blockquote,figcaption,th,td,pre";
 
 /** 의미 태그 없이 div/span으로만 작성한 본문을 보완하는 후보(구조 추출 전용). */
 export const GENERIC_TEXT_SELECTOR = "article,section,div,span";
@@ -30,7 +31,6 @@ export const SIGNIFICANT_SELECTOR = [
   INTERACTIVE_SELECTOR,
   LANDMARK_SELECTOR,
   TEXT_BLOCK_SELECTOR,
-  "table",
   "img[alt]",
 ].join(",");
 

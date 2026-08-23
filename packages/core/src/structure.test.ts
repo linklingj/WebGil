@@ -207,7 +207,7 @@ test("본문 문단은 그룹 버킷으로 묶지 않는다", () => {
   assert.equal(main.children.some((c) => c.kind === "group"), false, "문단은 버킷에 숨지 않는다");
 });
 
-test("표의 반복 셀은 빠짐없이 남고 행·열 헤더와 함께 읽는다", () => {
+test("표는 별도 계층 없이 헤더·셀을 DOM 읽기 순서대로 남긴다", () => {
   const root = tree(`
     <main>
       <table>
@@ -223,22 +223,18 @@ test("표의 반복 셀은 빠짐없이 남고 행·열 헤더와 함께 읽는�
       </table>
     </main>
   `);
-  const table = find(root, "표: 공모전 상금 안내")!;
-  const cells: DocNode[] = [];
-  const collect = (node: DocNode) => {
-    if (node.table && node.kind === "text") cells.push(node);
-    node.children.forEach(collect);
-  };
-  collect(table);
+  const main = root.children.find((node) => node.regionRole === "main")!;
+  const text = main.children.filter((node) => node.kind === "text");
 
-  assert.equal(table.table, true, "표는 전용 구조로 표시한다");
-  assert.equal(cells.filter((cell) => cell.text.endsWith("1점")).length, 4, "반복된 1점도 모두 보존한다");
-  assert.ok(cells.some((cell) => cell.text === "자유과제, 상점, 학생: 1점"));
-  assert.ok(cells.some((cell) => cell.text === "자유과제, 상점, 일반: 1점"));
-  assert.ok(cells.every((cell) => cell.handle), "표 셀도 하이라이트할 원본 handle을 보존한다");
+  assert.deepEqual(
+    text.map((node) => node.text),
+    ["과제", "상점", "구분", "학생", "일반", "자유과제", "1점", "1점", "1점", "1점"],
+  );
+  assert.equal(text.filter((node) => node.text === "1점").length, 4, "반복된 값도 모두 보존한다");
+  assert.ok(text.every((node) => node.handle), "표 셀도 하이라이트할 원본 handle을 보존한다");
 });
 
-test("표의 빈 셀과 셀 안 조작 항목도 생략하지 않는다", () => {
+test("표의 빈 셀은 건너뛰고 셀 안 조작 항목은 일반 링크로 남긴다", () => {
   const root = tree(`
     <main>
       <table aria-label="신청 현황">
@@ -247,16 +243,13 @@ test("표의 빈 셀과 셀 안 조작 항목도 생략하지 않는다", () => 
       </table>
     </main>
   `);
-  const table = find(root, "표: 신청 현황")!;
-  const dataRow = table.children[1];
-  const blank = dataRow.children[0];
-  const detail = dataRow.children[1];
-
-  assert.equal(blank.text, "상태: 비어 있음");
-  assert.equal(detail.text, "상세: 자세히 보기");
-  assert.equal(detail.children[0].kind, "link");
-  assert.equal(detail.children[0].text, "자세히 보기");
-  assert.ok(detail.children[0].handle, "표 안 링크도 실행할 원본 handle을 보존한다");
+  const main = root.children.find((node) => node.regionRole === "main")!;
+  assert.deepEqual(main.children.map((node) => [node.kind, node.text]), [
+    ["text", "상태"],
+    ["text", "상세"],
+    ["link", "자세히 보기"],
+  ]);
+  assert.ok(find(root, "자세히 보기")?.handle, "표 안 링크도 실행할 원본 handle을 보존한다");
 });
 
 test("treeStats: 총계·최상위·깊이를 센다", () => {
