@@ -12,6 +12,7 @@ export interface NarrationTarget {
 export interface NarrationContext {
   index?: number;
   count?: number;
+  /** brief는 원문만, full은 계층·위치를 포함한 상세 안내다. 기본은 반복 없는 일반 안내다. */
   detail?: "brief" | "full";
 }
 
@@ -24,19 +25,47 @@ const KIND_LABEL: Record<string, string> = {
   group: "그룹",
 };
 
-/** 현재 노드의 성격과 위치를 포함한 한국어 낭독 문구. */
+/** 현재 노드를 자연스러운 한국어 낭독 문구로 만든다. */
 export function formatNarration(target: NarrationTarget, context: NarrationContext = {}): string {
   const kind = KIND_LABEL[target.kind] ?? "항목";
   const text = target.text.trim() || `이름 없는 ${kind}`;
   if (context.detail === "brief") return text;
 
-  const parts = [text, kind];
-  // DocNode.level은 H1~H6 값이 아니라 문서 트리의 깊이다.
-  if (target.kind === "heading") parts.push(`계층 ${target.level}`);
-  if (context.index !== undefined && context.count !== undefined) {
-    parts.push(`${context.index + 1}번 항목, 전체 ${context.count}개`);
+  // 기본 이동은 내용 중심으로 짧게 읽는다. 위치 정보는 필요할 때만 full로 요청한다.
+  const sentences = [`${withSentenceEnding(text)} ${kind}입니다.`];
+  if (context.detail === "full") {
+    // DocNode.level은 H1~H6 값이 아니라 문서 트리의 깊이다.
+    if (target.kind === "heading") sentences.push(`${nativeOrdinal(target.level)} 계층입니다.`);
+    if (context.index !== undefined && context.count !== undefined) {
+      sentences.push(`현재 ${nativeOrdinal(context.index + 1)} 항목입니다.`);
+      sentences.push(`이 계층에는 총 ${nativeCount(context.count)} 개 항목이 있습니다.`);
+    }
   }
-  return parts.join(", ");
+  return sentences.join(" ");
+}
+
+const NATIVE_UNITS = ["", "한", "두", "세", "네", "다섯", "여섯", "일곱", "여덟", "아홉"];
+const NATIVE_TENS = ["", "열", "스물", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"];
+
+function nativeCount(value: number): string {
+  if (!Number.isInteger(value) || value < 1 || value > 99) return String(value);
+  if (value < 10) return NATIVE_UNITS[value];
+  const tens = Math.floor(value / 10);
+  const units = value % 10;
+  const tensText = value === 20 ? "스무" : NATIVE_TENS[tens];
+  return `${tensText}${units ? NATIVE_UNITS[units] : ""}`;
+}
+
+function nativeOrdinal(value: number): string {
+  if (value === 1) return "첫 번째";
+  const count = nativeCount(value);
+  // 100 이상은 한자어 수사 정규화 단계로 넘긴다. 띄어쓰기를 남겨야 "백 번째"처럼 읽힌다.
+  return count === String(value) ? `${value} 번째` : `${count} 번째`;
+}
+
+/** 제목 자체에 문장부호가 있어도 ".. 제목입니다"가 되지 않게 한다. */
+function withSentenceEnding(text: string): string {
+  return /[.!?…。！？]$/.test(text) ? text : `${text}.`;
 }
 
 /**
