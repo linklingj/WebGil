@@ -11,8 +11,10 @@ const NODE_WIDTH = 168;
 const NODE_GAP_X = 188;
 const NODE_GAP_Y = 92;
 const FOCUS_SCALE = 1;
-/** 형제가 수백 개인 목록에서 전부 그리지 않는다. 커서 주변만 보여주고 나머지는 잘라낸다. */
-// ponytail: 고정 창(window). 이걸로 부족하면 그때 가상화.
+/**
+ * 형제가 수백 개인 목록에서 전부 그리지는 않는다. 커서 앞뒤로 이만큼만 남기고 잘라낸다.
+ * 크기가 고정된 창이라, 이걸로도 느려지면 그때 가상화를 넣는다.
+ */
 const SIBLING_WINDOW = 12;
 
 export interface TreeViewOptions {

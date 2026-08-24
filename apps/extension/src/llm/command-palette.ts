@@ -1,6 +1,6 @@
 // 페이지 위에 직접 띄우는 자연어 명령창. 사이드패널이 생기기 전의 입력 경로이며,
 // 패널을 열 수 없는 상황(패널 미지원 창, 사용자가 닫아 둔 경우)의 대비책으로 남아 있다.
-// ponytail: 패널 검색창과 역할이 겹친다. 실사용에서 한쪽만 쓰이는 게 확인되면 지운다.
+// 패널 검색창과 역할이 겹친다 — 실사용에서 한쪽만 쓰이는 게 확인되면 지운다.
 import type { CommandDispatchResult } from "@webgil/core";
 
 export interface CommandPalette {

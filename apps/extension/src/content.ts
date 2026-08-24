@@ -310,7 +310,7 @@ async function confirmPendingCommand() {
 }
 
 // 02-L LLM 트리 재구성. 비용·지연이 있는 원격 호출이라 자동이 아니라 사용자가 부를 때만 돈다.
-// ponytail: 다음 mutation의 scan()이 규칙 기반 트리로 되돌린다. 재구성 유지는 UX 결정이 선 뒤에.
+// 다음 mutation의 scan()이 규칙 기반 트리로 되돌려 놓는다. 재구성을 유지할지는 UX 결정이 선 뒤에.
 async function refineDocumentTree(): Promise<string> {
   const result = await refineTree(documentTree, new ExtensionLanguageModel());
   if (result.status === "refined") {
