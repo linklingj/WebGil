@@ -92,6 +92,20 @@
           <p id="ttsStatus" class="form-status" role="status"></p>
         </form>
 
+        <form id="voiceRateSettings">
+          <h3>낭독 속도</h3>
+          <label for="voiceRate">속도</label>
+          <select id="voiceRate" name="voiceRate">
+            <option value="slow">느림</option>
+            <option value="normal" selected>일반</option>
+            <option value="fast">빠름</option>
+            <option value="veryFast">매우 빠름</option>
+          </select>
+          <p class="setting-help">기본값은 일반입니다. 페이지 낭독과 패널 안내에 함께 적용됩니다.</p>
+          <button type="submit">낭독 속도 저장</button>
+          <p id="voiceRateStatus" class="form-status" role="status"></p>
+        </form>
+
         <form id="narrationSettings">
           <h3>탐색 안내</h3>
           <label class="toggle" for="navigationGuidance">

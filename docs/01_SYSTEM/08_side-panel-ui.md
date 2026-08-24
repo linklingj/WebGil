@@ -113,7 +113,8 @@
 |---|---|---|
 | LLM 제공자 / 모델 / API 키 | `webgil.llm.provider` | popup과 동일 스키마 |
 | ElevenLabs API 키 / Voice ID / 모델 | `webgil.tts.elevenlabs` | popup과 동일 스키마 |
-| 낭독 속도·상세도 | (신규, 미구현) | 아래 "아직 안 한 것" |
+| 낭독 속도 | `webgil.tts.rate` | 느림·일반·빠름·매우 빠름 (기본 일반) |
+| 탐색 안내 상세도 | `webgil.navigation.guidance` | 레벨·순서 함께 읽기 |
 | 터치 네비게이션 기본값 | (신규, 미구현) | 현재는 매번 `Alt+Shift+T` |
 
 저장 키와 스키마를 그대로 두면 **background는 한 줄도 안 고쳐도 되고, 기존 사용자의 설정도 그대로 살아난다.** API 키 경고 문구(외부 전송 범위)도 함께 옮긴다.
@@ -251,7 +252,9 @@ apps/extension/src/panel/
 - 새 런타임 의존: `d3-hierarchy`, `d3-zoom`, `d3-selection` (ISC). `d3-shape`·`d3-transition`은 넣지 않았다 — 링크 path는 한 줄이고, 200ms 이징은 CSS `transition`이 한다.
 - 검증: `prune()` 규칙 단위 테스트 + 진짜 `panel.html`을 jsdom에 띄우는 스모크 테스트(선택자·역할 속성이 코드와 어긋나면 실패) + 다이얼로그가 **무엇을 말하는지**까지 확인하는 음성 테스트(background로 나가는 낭독 메시지를 가로채 문구를 비교).
 
-**아직 안 한 것** — 설정 표의 "신규" 3줄 중 낭독 속도·터치 네비 기본값은 미구현이다. 콘텐츠 스크립트는 `storage.local`(TRUSTED_CONTEXTS)을 읽을 수 없어 값을 전달할 경로부터 정해야 한다. 자동 카메라는 패널 안에서 팬·줌으로 껐다 켜므로 별도 설정을 두지 않았다.
+**설정값이 페이지까지 가는 길** — 콘텐츠 스크립트는 `storage.local`(TRUSTED_CONTEXTS)을 읽을 수 없다. 그래서 저장은 패널이 하고, 페이지는 Background에 물어본다: 부팅 때 한 번 `webgil.voice-rate.get`(탐색 안내는 `webgil.navigation-guidance.get`)으로 현재 값을 받고, 이후 변경은 Background가 `storage.local.onChanged`에서 모든 탭에 밀어 준다. 낭독 속도는 `NarrationController.setVoiceOptions()`로 낭독기 기본값에 한 번만 심는다 — 안내 호출부가 수십 군데라 옵션을 일일이 넘기지 않는다.
+
+**아직 안 한 것** — 터치 네비게이션 기본값. 자동 카메라는 패널 안에서 팬·줌으로 껐다 켜므로 별도 설정을 두지 않았다.
 
 ## 의존
 

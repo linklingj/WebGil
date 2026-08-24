@@ -37,6 +37,8 @@ export {
   CommandDispatcher,
   createDocumentContext,
   LLMCommandEngine,
+  MAX_REPLY_LENGTH,
+  toSpokenReply,
   validateCommand,
 } from "./llm-command.js";
 export type {

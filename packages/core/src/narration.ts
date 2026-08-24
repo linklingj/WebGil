@@ -74,8 +74,18 @@ function withSentenceEnding(text: string): string {
  */
 export class NarrationController {
   private requestId = 0;
+  /** 셸 설정에서 온 기본 음성 옵션(속도 등). 낭독 호출마다 넘기지 않아도 적용된다. */
+  private defaults: VoiceOptions = {};
 
   constructor(private readonly tts: TTSEngine) {}
+
+  /**
+   * 모든 낭독에 적용할 기본 옵션을 바꾼다. 호출부가 수십 군데라 옵션을 일일이 넘기는 대신
+   * 여기 한 곳에 둔다 — 설정이 바뀌면 다음 낭독부터 곧바로 반영된다.
+   */
+  setVoiceOptions(options: VoiceOptions): void {
+    this.defaults = options;
+  }
 
   async announce(
     target: NarrationTarget,
@@ -86,7 +96,10 @@ export class NarrationController {
     this.tts.stop();
     try {
       // 원문 트리는 그대로 보존하고, 실제 음성으로 나가는 문구에만 발음 정규화를 적용한다.
-      await this.tts.speak(normalizeKoreanNumberSpeech(formatNarration(target, context)), options);
+      await this.tts.speak(normalizeKoreanNumberSpeech(formatNarration(target, context)), {
+        ...this.defaults,
+        ...options,
+      });
     } catch (error) {
       // stop() 이후 늦게 도착한 취소 오류는 새 낭독을 방해하지 않는다.
       if (requestId !== this.requestId) return;

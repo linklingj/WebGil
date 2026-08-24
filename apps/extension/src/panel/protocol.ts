@@ -3,12 +3,14 @@
 // (docs/01_SYSTEM/08 "패널 ↔ 페이지 통신")
 import type { NavigationCommand, SnapshotNode } from "@webgil/core";
 import type { NavigationGuidance } from "../navigation/guidance.js";
+import type { VoiceRate } from "../tts/voice-rate.js";
 
 /** 패널 → 콘텐츠. 전부 id 아니면 열거값이다 — 노드 객체는 넘어가지 않는다. */
 export type PanelCommand =
   | { type: "sync" }
   | { type: "navigate"; command: NavigationCommand }
   | { type: "setNavigationGuidance"; guidance: NavigationGuidance; announce?: boolean }
+  | { type: "setVoiceRate"; rate: VoiceRate }
   | { type: "moveTo"; id: string }
   | { type: "activate"; id: string }
   | { type: "refine" }

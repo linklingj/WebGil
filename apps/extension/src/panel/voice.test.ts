@@ -12,9 +12,15 @@ const dom = new JSDOM(html, { pretendToBeVisual: true });
 
 const spoken: string[] = [];
 
+let lastAudio: FakeAudio | undefined;
+
 class FakeAudio {
   currentTime = 0;
   playbackRate = 1;
+
+  constructor() {
+    lastAudio = this;
+  }
   onended: ((event: Event) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   play(): Promise<void> {
@@ -46,7 +52,7 @@ Object.assign(globalThis, {
   },
 });
 
-const { attachDialogVoice, describeFormControl } = await import("./voice.js");
+const { attachDialogVoice, describeFormControl, setPanelVoiceRate, speak } = await import("./voice.js");
 
 const dialog = dom.window.document.querySelector<HTMLDialogElement>("#settingsDialog")!;
 // jsdom 25에는 <dialog>의 showModal/close가 없다(브라우저엔 있다). 테스트용 최소 대역.
@@ -183,4 +189,26 @@ test("검색 결과 사이를 오르내리면 지금 고른 결과를 읽는다"
 
   input.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowUp", bubbles: true }));
   assert.deepEqual(await flush(), ["공지사항, 본문 안, 일 번, 전체 이 개"]);
+});
+
+test("낭독 속도 설정은 실제 재생 배속으로 전달된다", async () => {
+  setPanelVoiceRate("veryFast");
+  speak("빠르게 읽습니다");
+  await flush();
+  assert.equal(lastAudio?.playbackRate, 2);
+
+  setPanelVoiceRate("slow");
+  speak("천천히 읽습니다");
+  await flush();
+  assert.equal(lastAudio?.playbackRate, 0.75);
+
+  setPanelVoiceRate("normal");
+});
+
+test("낭독 속도 선택 항목도 현재 값을 읽어 준다", () => {
+  const control = dialog.querySelector<HTMLSelectElement>("#voiceRate")!;
+  assert.equal(describeFormControl(dialog, control), "속도, 현재 일반");
+  control.value = "fast";
+  assert.equal(describeFormControl(dialog, control), "속도, 현재 빠름");
+  control.value = "normal";
 });

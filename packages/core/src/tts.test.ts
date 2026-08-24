@@ -6,10 +6,12 @@ import type { TTSEngine, VoiceOptions, VoicePreset } from "./tts.js";
 
 class RecordingTTS implements TTSEngine {
   readonly spoken: string[] = [];
+  readonly options: (VoiceOptions | undefined)[] = [];
   stops = 0;
 
-  async speak(text: string, _options?: VoiceOptions): Promise<void> {
+  async speak(text: string, options?: VoiceOptions): Promise<void> {
     this.spoken.push(text);
+    this.options.push(options);
   }
 
   stop(): void {
@@ -84,4 +86,16 @@ test("숫자를 엔진에 보내기 전 한자어 수사로 통일한다", async
   const tts = new RecordingTTS();
   await new NarrationController(tts).announce({ text: "7", kind: "heading", level: 1 }, { index: 0, count: 12 });
   assert.deepEqual(tts.spoken, ["칠. 제목입니다."]);
+});
+
+test("setVoiceOptions: 낭독 속도 같은 기본값이 모든 안내에 붙는다", async () => {
+  const tts = new RecordingTTS();
+  const narrator = new NarrationController(tts);
+
+  await narrator.announce({ text: "처음", kind: "text", level: 1 });
+  narrator.setVoiceOptions({ rate: 1.5 });
+  await narrator.announce({ text: "다음", kind: "text", level: 1 });
+  await narrator.announce({ text: "예외", kind: "text", level: 1 }, {}, { rate: 0.75 });
+
+  assert.deepEqual(tts.options, [{}, { rate: 1.5 }, { rate: 0.75 }]);
 });
