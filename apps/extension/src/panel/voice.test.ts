@@ -93,7 +93,7 @@ test("Alt + 아래/위로 항목을 옮기고, 옮긴 항목을 읽는다", asyn
 
   down();
   assert.equal(dom.window.document.activeElement, provider);
-  assert.deepEqual(await flush(), ["제공자, 현재 OpenAI (ChatGPT API)"]);
+  assert.deepEqual(await flush(), ["제공자, 현재 OpenAI ChatGPT API"]);
 
   down();
   assert.equal(dom.window.document.activeElement, model);
@@ -121,6 +121,14 @@ test("끝에서는 순환하지 않고 경계를 알린다", async () => {
   await flush();
   dialog.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "ArrowDown", altKey: true, bubbles: true }));
   assert.deepEqual(await flush(), ["마지막 항목입니다."]);
+});
+
+test("탐색 안내 체크박스는 켜짐·꺼짐 상태를 읽는다", () => {
+  const control = dialog.querySelector<HTMLInputElement>("#navigationGuidance")!;
+  control.checked = false;
+  assert.equal(describeFormControl(dialog, control), "탐색 안내: 레벨·현재 항목·전체 항목 수 함께 읽기, 꺼짐");
+  control.checked = true;
+  assert.equal(describeFormControl(dialog, control), "탐색 안내: 레벨·현재 항목·전체 항목 수 함께 읽기, 켜짐");
 });
 
 test("창을 닫으면 닫혔다고 알린다", async () => {

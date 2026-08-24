@@ -1,7 +1,7 @@
 import { ActionExecutor } from "./action.js";
 import type { Action, CaptureSource, NodeId } from "./capture-source.js";
 import { NavigationEngine, type NavigationResult } from "./navigation.js";
-import { NarrationController } from "./narration.js";
+import { NarrationController, type NarrationContext } from "./narration.js";
 import { indexById, type DocNode } from "./tree.js";
 
 /** LLM에 전달할 때 DOM 대신 사용하는, 노드 id가 포함된 읽기 전용 문서 표현이다. */
@@ -61,6 +61,8 @@ export interface CommandRuntime {
   navigation: NavigationEngine;
   source: Pick<CaptureSource, "execute" | "highlight">;
   narrator: Pick<NarrationController, "announce" | "stop">;
+  /** 셸 설정에 따라 LLM 탐색에도 동일한 낭독 상세도를 적용한다. */
+  narrationDetail?: () => NarrationContext["detail"];
 }
 
 /** OpenAI 호환 API, Ollama 등 어떤 제공자에도 맞출 수 있는 최소 어댑터 계약. */
@@ -175,6 +177,7 @@ export class CommandDispatcher {
         await this.runtime.narrator.announce(navigation.node, {
           index: navigation.index,
           count: navigation.count,
+          detail: this.runtime.narrationDetail?.(),
         });
       }
       return { status: "executed", command, navigation };
@@ -187,7 +190,7 @@ export class CommandDispatcher {
       }
       const current = this.runtime.navigation.current;
       if (!current) return { status: "message", text: "읽을 현재 항목이 없습니다." };
-      await this.runtime.narrator.announce(current);
+      await this.runtime.narrator.announce(current, { detail: this.runtime.narrationDetail?.() });
       return { status: "executed", command };
     }
 

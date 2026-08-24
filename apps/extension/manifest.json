@@ -29,6 +29,10 @@
     "focus-search": {
       "suggested_key": { "default": "Alt+Shift+F" },
       "description": "WebGil 검색창으로 이동"
+    },
+    "toggle-navigation-guidance": {
+      "suggested_key": { "default": "Alt+Shift+G" },
+      "description": "WebGil 탐색 안내 켜기/끄기"
     }
   },
   "name": "WebGil (웹길)",

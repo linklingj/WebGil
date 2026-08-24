@@ -27,6 +27,11 @@ import {
   type PanelState,
 } from "./panel/protocol.js";
 import { TouchNavigationController } from "./navigation/touch-navigation.js";
+import {
+  isNavigationGuidance,
+  narrationDetailFor,
+  type NavigationGuidance,
+} from "./navigation/guidance.js";
 import { ElevenLabsSpeechEngine } from "./tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 
@@ -34,6 +39,25 @@ const source = new ExtensionSource();
 const tts = new ElevenLabsSpeechEngine(new WebSpeechEngine());
 const narrator = new NarrationController(tts);
 let navigation: NavigationEngine | undefined;
+// 설정을 불러오기 전에도 기본값은 간결 낭독이다. 저장소는 Background만 읽는다.
+let navigationGuidance: NavigationGuidance = "compact";
+
+void loadNavigationGuidance();
+
+async function loadNavigationGuidance(): Promise<void> {
+  try {
+    const response = await chrome.runtime.sendMessage<ChromeRuntimeMessageResponse>({
+      type: "webgil.navigation-guidance.get",
+    });
+    if (response.ok && isNavigationGuidance(response.value)) navigationGuidance = response.value;
+  } catch {
+    // Background가 아직 준비되지 않았거나 지원하지 않는 환경이면 기본값을 유지한다.
+  }
+}
+
+function navigationDetail(): "full" | undefined {
+  return narrationDetailFor(navigationGuidance);
+}
 
 function scan() {
   const tree = extractTree(source.getDOM());
@@ -116,12 +140,23 @@ async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
     case "navigate":
       handleNavigation(command.command);
       break;
+    case "setNavigationGuidance":
+      navigationGuidance = command.guidance;
+      if (command.announce) {
+        void narrator
+          .announce(
+            { text: command.guidance === "detailed" ? "탐색 안내 켜짐" : "탐색 안내 꺼짐", kind: "group", level: 0 },
+            { detail: "brief" },
+          )
+          .catch((error) => console.warn("[WebGil] 탐색 안내 변경 낭독 실패", error));
+      }
+      break;
     case "moveTo": {
       const result = navigation!.moveTo(command.id);
       if (result.node) {
         source.highlight(result.node.id);
         void narrator
-          .announce(result.node, { index: result.index, count: result.count })
+          .announce(result.node, { index: result.index, count: result.count, detail: navigationDetail() })
           .catch((error) => console.warn("[WebGil] 낭독 실패", error));
       }
       break;
@@ -203,6 +238,7 @@ const commandDispatcher = new CommandDispatcher({
   navigation: navigation!,
   source,
   narrator,
+  narrationDetail: navigationDetail,
 });
 const llm = new LLMCommandEngine(new ExtensionLanguageModel());
 let pendingCommand: Awaited<ReturnType<typeof llm.interpret>> | undefined;
@@ -303,8 +339,7 @@ function handleNavigation(command: NavigationCommand): void {
       .announce(result.node, {
         index: result.index,
         count: result.count,
-        // 일반 좌우 이동은 짧게, 계층을 실제로 드나들 때만 위치를 자세히 알린다.
-        detail: command === "enter" || command === "back" ? "full" : undefined,
+        detail: navigationDetail(),
       })
       .catch((error) => console.warn("[WebGil] 낭독 실패", error));
   } else if (result.status === "boundary") {

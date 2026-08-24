@@ -265,6 +265,20 @@ dialog::backdrop { background: rgb(0 0 0 / 45%); }
   font: inherit;
 }
 
+.dialog-body .toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.dialog-body .toggle input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+.dialog-body .toggle span { font-weight: 600; }
+.setting-help { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+
 .dialog-body button[type="submit"] {
   margin-top: 12px;
   width: 100%;

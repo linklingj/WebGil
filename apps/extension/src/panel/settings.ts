@@ -2,6 +2,7 @@
 // 저장 키·스키마를 바꾸지 않는다 → background는 손대지 않아도 되고 기존 설정도 살아남는다.
 // 사이드패널도 popup과 같은 신뢰된 확장 컨텍스트라 storage.local(TRUSTED_CONTEXTS)을 그대로 읽는다.
 import { attachDialogVoice, describeFormControl, speak, type DialogVoice } from "./voice.js";
+import { NAVIGATION_GUIDANCE_STORAGE_KEY, type NavigationGuidance } from "../navigation/guidance.js";
 
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
@@ -9,11 +10,13 @@ const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
 export class SettingsDialog {
   private readonly form: HTMLFormElement;
   private readonly ttsForm: HTMLFormElement;
+  private readonly narrationForm: HTMLFormElement;
   private readonly voice: DialogVoice;
 
   constructor(private readonly dialog: HTMLDialogElement) {
     this.form = dialog.querySelector<HTMLFormElement>("#settings")!;
     this.ttsForm = dialog.querySelector<HTMLFormElement>("#ttsSettings")!;
+    this.narrationForm = dialog.querySelector<HTMLFormElement>("#narrationSettings")!;
     this.voice = attachDialogVoice(dialog, {
       label: "설정",
       stops: () => [...dialog.querySelectorAll<HTMLElement>("select, input, button")],
@@ -27,6 +30,10 @@ export class SettingsDialog {
     this.ttsForm.addEventListener("submit", (event) => {
       event.preventDefault();
       void this.saveTTS();
+    });
+    this.narrationForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      void this.saveNarration();
     });
     void this.load();
   }
@@ -49,7 +56,7 @@ export class SettingsDialog {
   }
 
   private async load(): Promise<void> {
-    const stored = await chrome.storage.local.get([LLM_STORAGE_KEY, TTS_STORAGE_KEY]);
+    const stored = await chrome.storage.local.get([LLM_STORAGE_KEY, TTS_STORAGE_KEY, NAVIGATION_GUIDANCE_STORAGE_KEY]);
     const config = stored[LLM_STORAGE_KEY];
     if (isConfig(config)) {
       this.field<HTMLSelectElement>("#provider").value = config.provider;
@@ -63,6 +70,9 @@ export class SettingsDialog {
       this.field<HTMLInputElement>("#ttsVoiceId").value = ttsConfig.voiceId;
       this.field<HTMLSelectElement>("#ttsModel").value = ttsConfig.model;
     }
+
+    this.field<HTMLInputElement>("#navigationGuidance").checked =
+      stored[NAVIGATION_GUIDANCE_STORAGE_KEY] === "detailed";
   }
 
   private async save(): Promise<void> {
@@ -94,6 +104,15 @@ export class SettingsDialog {
     }
     await chrome.storage.local.set({ [TTS_STORAGE_KEY]: config });
     this.report(status, "ElevenLabs 음성을 이 기기에 저장했습니다.");
+  }
+
+  private async saveNarration(): Promise<void> {
+    const status = this.field<HTMLElement>("#narrationStatus");
+    const guidance: NavigationGuidance = this.field<HTMLInputElement>("#navigationGuidance").checked
+      ? "detailed"
+      : "compact";
+    await chrome.storage.local.set({ [NAVIGATION_GUIDANCE_STORAGE_KEY]: guidance });
+    this.report(status, guidance === "detailed" ? "탐색 안내를 켰습니다." : "탐색 안내를 껐습니다.");
   }
 
   /** 저장 결과는 화면을 못 보는 사용자에게 유일한 피드백이라 소리로도 알린다. */

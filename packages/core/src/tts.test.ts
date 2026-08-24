@@ -35,6 +35,11 @@ test("기본 이동은 짧게 읽고, 상세 모드에서만 계층·위치를 �
     "소개입니다. 제목입니다.",
   );
   assert.equal(
+    formatNarration({ text: "공지 내용을 확인하세요", kind: "text", level: 1 }),
+    "공지 내용을 확인하세요.",
+    "일반 본문은 내용을 한 번 더 텍스트라고 설명하지 않는다",
+  );
+  assert.equal(
     formatNarration({ text: "목록", kind: "group", level: 1 }, { detail: "full", index: 99, count: 100 }),
     "목록. 그룹입니다. 현재 100 번째 항목입니다. 이 계층에는 총 100 개 항목이 있습니다.",
   );
