@@ -34,6 +34,7 @@ import {
 } from "./navigation/guidance.js";
 import { ElevenLabsSpeechEngine } from "./tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
+import { isVoiceRate, speechRateFor, type VoiceRate } from "./tts/voice-rate.js";
 
 const source = new ExtensionSource();
 const tts = new ElevenLabsSpeechEngine(new WebSpeechEngine());
@@ -43,6 +44,23 @@ let navigation: NavigationEngine | undefined;
 let navigationGuidance: NavigationGuidance = "compact";
 
 void loadNavigationGuidance();
+void loadVoiceRate();
+
+/** 낭독 속도는 모든 안내에 걸리므로 낭독기 기본값으로 한 번만 심는다. */
+function applyVoiceRate(rate: VoiceRate): void {
+  narrator.setVoiceOptions({ rate: speechRateFor(rate) });
+}
+
+async function loadVoiceRate(): Promise<void> {
+  try {
+    const response = await chrome.runtime.sendMessage<ChromeRuntimeMessageResponse>({
+      type: "webgil.voice-rate.get",
+    });
+    if (response.ok && isVoiceRate(response.value)) applyVoiceRate(response.value);
+  } catch {
+    // Background가 아직 준비되지 않았으면 기본 속도(1배)를 유지한다.
+  }
+}
 
 async function loadNavigationGuidance(): Promise<void> {
   try {
@@ -139,6 +157,9 @@ async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
       break;
     case "navigate":
       handleNavigation(command.command);
+      break;
+    case "setVoiceRate":
+      applyVoiceRate(command.rate);
       break;
     case "setNavigationGuidance":
       navigationGuidance = command.guidance;

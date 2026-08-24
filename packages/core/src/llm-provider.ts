@@ -1,6 +1,12 @@
 import type { LanguageModel, LLMRequest } from "./llm-command.js";
 
-export type LLMProvider = "openai" | "gemini" | "anthropic";
+export type LLMProvider = "openai" | "gemini" | "anthropic" | "ollama";
+
+/**
+ * 로컬 Ollama 주소. 확장은 manifest host_permissions에 이 주소를 고정으로 넣으므로
+ * 사용자가 포트를 바꿀 수는 없다(권한은 런타임에 늘릴 수 없다). 기본 설치 기준값.
+ */
+export const OLLAMA_HOST = "http://localhost:11434";
 
 /** 사용자 기기의 확장 설정에만 저장되는 제공자 연결 정보. Git에 저장하지 않는다. */
 export interface ProviderConfig {
@@ -23,7 +29,26 @@ export function createProviderLanguageModel(
       return new GeminiOpenAICompatibleModel(config, fetchFunction);
     case "anthropic":
       return new AnthropicMessagesModel(config, fetchFunction);
+    case "ollama":
+      return new OllamaChatModel(config, fetchFunction);
   }
+}
+
+/**
+ * 설치된 로컬 모델 목록. 사용자가 어떤 모델을 받아 뒀는지는 우리가 알 수 없으므로
+ * 설정 화면이 이 목록을 그대로 보여 주고 고르게 한다.
+ */
+export async function listOllamaModels(fetchFunction: FetchFunction = fetch): Promise<string[]> {
+  const response = await fetchFunction(`${OLLAMA_HOST}/api/tags`, { method: "GET" });
+  const payload = await readJsonOrText(response);
+  if (!response.ok) {
+    throw new Error(`Ollama 모델 목록을 받지 못했습니다 (${response.status}).${troubleshoot(OLLAMA_HOST, response.status)}`);
+  }
+
+  const names = readArray(readRecord(payload).models)
+    .map((entry) => readRecord(entry).name)
+    .filter((name): name is string => typeof name === "string" && name.length > 0);
+  return [...new Set(names)].sort((a, b) => a.localeCompare(b));
 }
 
 export class OpenAIResponsesModel implements LanguageModel {
@@ -108,6 +133,38 @@ export class AnthropicMessagesModel implements LanguageModel {
   }
 }
 
+/**
+ * 로컬 Ollama 어댑터. 키가 없고 요청이 기기 밖으로 나가지 않는다 —
+ * 민감한 페이지를 다룰 때의 프라이버시 선택지다. (plan.md §3.4)
+ *
+ * OpenAI 호환 엔드포인트 대신 네이티브 `/api/chat`을 쓴다. `format: "json"`이
+ * 구버전까지 폭넓게 지원되고, 응답 형태도 단순하다.
+ */
+export class OllamaChatModel implements LanguageModel {
+  constructor(
+    private readonly config: ProviderConfig,
+    private readonly fetchFunction: FetchFunction = fetch,
+  ) {}
+
+  async complete(request: LLMRequest): Promise<unknown> {
+    const response = await postJson(this.fetchFunction, `${OLLAMA_HOST}/api/chat`, {}, {
+      model: this.config.model,
+      stream: false,
+      format: "json",
+      // 명령 해석은 창의력이 필요한 일이 아니다. 같은 말에 같은 계획이 나오는 편이 낫다.
+      options: { temperature: 0 },
+      messages: [
+        { role: "system", content: request.system },
+        { role: "user", content: promptWithDocument(request) },
+      ],
+    });
+
+    const content = readRecord(readRecord(response).message).content;
+    if (typeof content !== "string") throw new Error("Ollama 응답에서 텍스트를 찾지 못했습니다.");
+    return parseModelJson(content);
+  }
+}
+
 function promptWithDocument(request: LLMRequest): string {
   const document = JSON.stringify({
     nodes: request.document.text,
@@ -140,11 +197,56 @@ async function postJson(
   });
 
   const payload = await readJsonOrText(response);
-  if (!response.ok) {
-    const detail = readRecord(readRecord(payload).error).message;
-    throw new Error(`LLM 요청 실패 (${response.status}): ${typeof detail === "string" ? detail : "알 수 없는 오류"}`);
-  }
+  if (!response.ok) throw requestError(url, response, payload);
   return payload;
+}
+
+/**
+ * 실패 응답을 사람이 다음 행동을 정할 수 있는 문장으로 바꾼다.
+ *
+ * 예전에는 `{error:{message}}` 한 가지만 읽어서, 본문이 비었거나 평문이면 "알 수 없는 오류"로 끝났다.
+ * 화면을 못 보는 사용자에게 그 문장은 아무 정보도 아니다 — 어디서, 무엇이, 다음에 뭘 해야 하는지까지 담는다.
+ */
+function requestError(url: string, response: Response, payload: unknown): Error {
+  const host = safeHost(url);
+  const detail = errorDetail(payload) ?? response.statusText ?? "";
+  const hint = troubleshoot(url, response.status);
+  const because = detail ? `: ${detail}` : "";
+  return new Error(`LLM 요청 실패 (${response.status}, ${host})${because}${hint}`);
+}
+
+function errorDetail(payload: unknown): string | undefined {
+  // 제공자마다 오류 모양이 다르다: {error:{message}}(OpenAI·Gemini·Claude), {error:"..."}·평문(Ollama).
+  const record = readRecord(payload);
+  const error = record.error;
+  const candidate = typeof error === "string" ? error
+    : typeof readRecord(error).message === "string" ? readRecord(error).message
+    : typeof record.message === "string" ? record.message
+    : typeof record.raw === "string" ? record.raw
+    : undefined;
+  if (typeof candidate !== "string") return undefined;
+  const text = candidate.replace(/\s+/g, " ").trim();
+  if (!text) return undefined;
+  return text.length > 200 ? `${text.slice(0, 199)}…` : text;
+}
+
+/** 원인이 뻔한 실패에는 해결 방법을 붙인다. 특히 로컬 서버는 사용자가 직접 고칠 수 있다. */
+function troubleshoot(url: string, status: number): string {
+  if (!url.startsWith(OLLAMA_HOST)) return "";
+  if (status === 403) {
+    return " — Ollama가 확장 프로그램의 요청을 거부했습니다."
+      + " OLLAMA_ORIGINS='chrome-extension://*' ollama serve 로 다시 실행해 주세요.";
+  }
+  if (status === 404) return " — 그 이름의 모델이 없습니다. ollama pull 로 먼저 받아 주세요.";
+  return "";
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
 }
 
 async function readJsonOrText(response: Response): Promise<unknown> {

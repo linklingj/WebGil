@@ -4,6 +4,8 @@ import {
   CommandDispatcher,
   createDocumentContext,
   LLMCommandEngine,
+  MAX_REPLY_LENGTH,
+  toSpokenReply,
   type LanguageModel,
   validateCommand,
 } from "./llm-command.js";
@@ -142,4 +144,63 @@ test("CommandDispatcher: 조작할 수 없는 노드는 확인을 거쳐도 실�
     reason: "조작할 수 없는 항목입니다.",
   });
   assert.deepEqual(executed, []);
+});
+
+test("toSpokenReply: 마크다운 서식을 벗겨 말로 읽을 문장만 남긴다", () => {
+  const raw = [
+    "## 요약",
+    "- **가격**은 1만 원입니다.",
+    "- 자세한 내용은 [공지](https://example.com/notice)를 보세요.",
+    "```js\nconsole.log(1)\n```",
+  ].join("\n");
+
+  assert.equal(
+    toSpokenReply(raw),
+    "요약 가격은 1만 원입니다. 자세한 내용은 공지를 보세요.",
+    "제목·목록 기호·강조·링크 주소·코드 블록은 소리로 읽을 게 아니다",
+  );
+});
+
+test("toSpokenReply: 250자를 넘기면 문장 끝에서 자른다", () => {
+  const sentence = "가격 정보를 안내합니다. ";
+  const reply = toSpokenReply(sentence.repeat(30));
+
+  assert.ok(reply.length <= MAX_REPLY_LENGTH, `${reply.length}자`);
+  assert.ok(reply.endsWith("."), "말이 중간에 끊기지 않는다");
+});
+
+test("toSpokenReply: 문장 끝이 없으면 말줄임으로 마무리한다", () => {
+  const reply = toSpokenReply("가".repeat(400));
+
+  assert.ok(reply.length <= MAX_REPLY_LENGTH);
+  assert.ok(reply.endsWith("…"));
+});
+
+test("validateCommand: answer·clarify도 낭독용으로 다듬어 통과시킨다", () => {
+  const nodes = indexById(tree);
+  const answer = validateCommand({ type: "answer", text: "**로그인** 버튼이 있습니다." }, nodes);
+  assert.deepEqual(answer, {
+    status: "ready",
+    requiresConfirmation: false,
+    command: { type: "answer", text: "로그인 버튼이 있습니다." },
+  });
+
+  const clarify = validateCommand({ type: "clarify", question: "## 어느 버튼을 누를까요?" }, nodes);
+  assert.equal(clarify.status === "ready" && clarify.command.type === "clarify" && clarify.command.question, "어느 버튼을 누를까요?");
+  assert.equal(validateCommand({ type: "answer", text: "**  **" }, nodes).status, "rejected", "서식만 남은 답은 빈 응답");
+});
+
+test("LLMCommandEngine: 답변 형식 규칙을 프롬프트로 강제한다", async () => {
+  let seen = "";
+  const model: LanguageModel = {
+    async complete(request) {
+      seen = request.system;
+      return { type: "answer", text: "네." };
+    },
+  };
+  await new LLMCommandEngine(model).interpret("이 페이지 요약해줘", tree);
+
+  assert.match(seen, /read aloud/, "화면이 아니라 소리로 나간다고 알린다");
+  assert.match(seen, /no markdown/);
+  assert.match(seen, new RegExp(`under ${MAX_REPLY_LENGTH} characters`));
 });

@@ -226,17 +226,46 @@ export function validateCommand(raw: unknown, nodes: ReadonlyMap<NodeId, DocNode
       // 페이지 상태를 바꾸는 동작은 모델이 결정하더라도 사용자 확인 뒤에만 실행한다.
       return { status: "ready", command: { type: "action", action }, requiresConfirmation: true };
     }
-    case "answer":
-      return typeof value.text === "string" && value.text.trim()
-        ? ready({ type: "answer", text: value.text.trim() })
-        : rejected("응답 내용이 비어 있습니다.");
-    case "clarify":
-      return typeof value.question === "string" && value.question.trim()
-        ? ready({ type: "clarify", question: value.question.trim() })
-        : rejected("확인 질문이 비어 있습니다.");
+    case "answer": {
+      const text = typeof value.text === "string" ? toSpokenReply(value.text) : "";
+      return text ? ready({ type: "answer", text }) : rejected("응답 내용이 비어 있습니다.");
+    }
+    case "clarify": {
+      const question = typeof value.question === "string" ? toSpokenReply(value.question) : "";
+      return question ? ready({ type: "clarify", question }) : rejected("확인 질문이 비어 있습니다.");
+    }
     default:
       return rejected("알 수 없는 명령 종류입니다.");
   }
+}
+
+/** 답변은 귀로 듣는다. 화면용 서식은 소리로 나오면 방해만 되고, 길면 끝까지 듣지 못한다. */
+export const MAX_REPLY_LENGTH = 250;
+
+/**
+ * 모델 답변을 낭독 가능한 한 문단으로 다듬는다.
+ *
+ * 프롬프트로 요청은 하되 모델이 지키지 않을 때가 있으므로 여기서 한 번 더 보장한다
+ * (마크다운 기호는 TTS가 "별표"·"우물 정"으로 읽거나 어색하게 끊는다).
+ * 자르더라도 문장 끝에서 자른다 — 말이 중간에 뚝 끊기면 답을 못 들은 것과 같다.
+ */
+export function toSpokenReply(raw: string, limit = MAX_REPLY_LENGTH): string {
+  const text = raw
+    .replace(/```[\s\S]*?```/g, " ")           // 코드 블록
+    .replace(/`([^`]*)`/g, "$1")               // 인라인 코드
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")   // 링크·이미지 → 글자만
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")        // 제목
+    .replace(/^\s{0,3}>\s?/gm, "")             // 인용
+    .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, "") // 목록 기호
+    .replace(/(\*\*|__|\*|_|~~)/g, "")         // 강조
+    .replace(/\s+/g, " ")
+    .trim();
+  if (text.length <= limit) return text;
+
+  const cut = text.slice(0, limit);
+  const lastSentence = Math.max(cut.lastIndexOf("."), cut.lastIndexOf("!"), cut.lastIndexOf("?"), cut.lastIndexOf("다."));
+  // 문장 끝이 너무 앞이면(=거의 통째로 버리게 되면) 그냥 말줄임으로 마무리한다.
+  return lastSentence >= limit * 0.5 ? cut.slice(0, lastSentence + 1).trim() : `${cut.slice(0, limit - 1).trim()}…`;
 }
 
 const SYSTEM_PROMPT = [
@@ -253,6 +282,12 @@ const SYSTEM_PROMPT = [
   '{"type":"answer","text":"..."}',
   '{"type":"clarify","question":"..."}',
   "For an action, use only a node id present in the supplied document.",
+  // 답변은 화면이 아니라 스피커로 나간다.
+  "Answer and clarify text is read aloud by a screen reader, never displayed.",
+  "Write it as one short spoken reply in the user's language, the way you would say it out loud.",
+  "Plain sentences only: no markdown, no headings, no bullet or numbered lists, no bold or italic marks, no code blocks, no emoji, no URLs.",
+  `Keep it under ${MAX_REPLY_LENGTH} characters and end on a complete sentence.`,
+  "If the full answer would be longer, say the single most useful part instead of trailing off.",
 ].join("\n");
 
 function ready(command: Exclude<LLMCommand, { type: "action" }>): CommandResolution {

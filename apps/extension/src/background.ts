@@ -1,5 +1,6 @@
 import {
   createProviderLanguageModel,
+  listOllamaModels,
   type LLMRequest,
   type ProviderConfig,
 } from "@webgil/core";
@@ -9,7 +10,13 @@ import {
   isNavigationGuidance,
   type NavigationGuidance,
 } from "./navigation/guidance.js";
-import { PANEL_COMMAND, PANEL_VIEW_KEY, type PanelView } from "./panel/protocol.js";
+import { PANEL_COMMAND, PANEL_VIEW_KEY, type PanelCommand, type PanelView } from "./panel/protocol.js";
+import {
+  DEFAULT_VOICE_RATE,
+  VOICE_RATE_STORAGE_KEY,
+  isVoiceRate,
+  type VoiceRate,
+} from "./tts/voice-rate.js";
 
 const LLM_STORAGE_KEY = "webgil.llm.provider";
 const TTS_STORAGE_KEY = "webgil.tts.elevenlabs";
@@ -45,6 +52,9 @@ chrome.commands.onCommand.addListener((command, tab) => {
 chrome.storage.local.onChanged.addListener((changes) => {
   const guidance = changes[NAVIGATION_GUIDANCE_STORAGE_KEY]?.newValue;
   if (isNavigationGuidance(guidance)) void broadcastNavigationGuidance(guidance);
+
+  const rate = changes[VOICE_RATE_STORAGE_KEY]?.newValue;
+  if (isVoiceRate(rate)) void broadcastToTabs({ type: "setVoiceRate", rate });
 });
 
 /** 패널을 열고(닫혀 있었다면) 무엇을 띄울지 남긴다. open()을 먼저 불러야 제스처가 살아 있다. */
@@ -71,6 +81,27 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
       .catch((error: unknown) => {
         const text = error instanceof Error ? error.message : "ElevenLabs 음성 요청에 실패했습니다.";
+        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
+      });
+    return true;
+  }
+
+  if (isOllamaModelsMessage(message)) {
+    // 로컬 Ollama 호출도 Background가 맡는다 — 페이지 스크립트에 로컬 서버를 열어 주지 않는다.
+    void listOllamaModels()
+      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
+      .catch((error: unknown) => {
+        const text = error instanceof Error ? error.message : "Ollama에 연결하지 못했습니다.";
+        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
+      });
+    return true;
+  }
+
+  if (isVoiceRateGetMessage(message)) {
+    void readVoiceRate()
+      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
+      .catch((error: unknown) => {
+        const text = error instanceof Error ? error.message : "낭독 속도 설정을 읽지 못했습니다.";
         sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
       });
     return true;
@@ -150,17 +181,23 @@ async function toggleNavigationGuidance(tabId: number | undefined): Promise<void
 
 /** content script가 있는 모든 탭의 메모리 설정을 저장값과 맞춘다. */
 async function broadcastNavigationGuidance(guidance: NavigationGuidance): Promise<void> {
+  await broadcastToTabs({ type: "setNavigationGuidance", guidance });
+}
+
+/** 열려 있는 모든 탭에 같은 명령을 보낸다. content script가 없는 탭의 실패는 정상이라 삼킨다. */
+async function broadcastToTabs(command: PanelCommand): Promise<void> {
   const tabs = await chrome.tabs.query({});
   await Promise.all(
     tabs
       .filter((tab): tab is ChromeTab & { id: number } => tab.id !== undefined)
-      .map((tab) =>
-        chrome.tabs.sendMessage(tab.id, {
-          type: PANEL_COMMAND,
-          command: { type: "setNavigationGuidance", guidance },
-        }).catch(() => {}),
-      ),
+      .map((tab) => chrome.tabs.sendMessage(tab.id, { type: PANEL_COMMAND, command }).catch(() => {})),
   );
+}
+
+async function readVoiceRate(): Promise<VoiceRate> {
+  const stored = await chrome.storage.local.get(VOICE_RATE_STORAGE_KEY);
+  const rate = stored[VOICE_RATE_STORAGE_KEY];
+  return isVoiceRate(rate) ? rate : DEFAULT_VOICE_RATE;
 }
 
 function isCompleteMessage(value: unknown): value is { type: "webgil.llm.complete"; request: LLMRequest } {
@@ -182,9 +219,18 @@ function isNavigationGuidanceGetMessage(value: unknown): value is { type: "webgi
   return isRecord(value) && value.type === "webgil.navigation-guidance.get";
 }
 
+function isVoiceRateGetMessage(value: unknown): value is { type: "webgil.voice-rate.get" } {
+  return isRecord(value) && value.type === "webgil.voice-rate.get";
+}
+
+function isOllamaModelsMessage(value: unknown): value is { type: "webgil.ollama.models" } {
+  return isRecord(value) && value.type === "webgil.ollama.models";
+}
+
 function isProviderConfig(value: unknown): value is ProviderConfig {
   return isRecord(value)
-    && (value.provider === "openai" || value.provider === "gemini" || value.provider === "anthropic")
+    && (value.provider === "openai" || value.provider === "gemini" || value.provider === "anthropic"
+      || value.provider === "ollama")
     && typeof value.apiKey === "string"
     && typeof value.model === "string";
 }

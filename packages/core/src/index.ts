@@ -37,6 +37,8 @@ export {
   CommandDispatcher,
   createDocumentContext,
   LLMCommandEngine,
+  MAX_REPLY_LENGTH,
+  toSpokenReply,
   validateCommand,
 } from "./llm-command.js";
 export type {
@@ -56,6 +58,9 @@ export {
   AnthropicMessagesModel,
   createProviderLanguageModel,
   GeminiOpenAICompatibleModel,
+  listOllamaModels,
+  OLLAMA_HOST,
+  OllamaChatModel,
   OpenAIResponsesModel,
 } from "./llm-provider.js";
 export type { FetchFunction, LLMProvider, ProviderConfig } from "./llm-provider.js";
