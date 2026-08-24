@@ -67,7 +67,7 @@ doc.querySelectorAll(SIGNIFICANT_SELECTOR)   ← 문서 순서대로 1회 순회
 
 ### P1-C. 평평한 버킷 = 탐색 불가능한 덩어리
 
-`bucketByKind`는 같은 kind leaf 6개 이상을 **하나의 평평한 그룹**으로 묶는다(`structure.ts:174`에 이미 ponytail 표시). "링크 294개" 버킷에 들어가면 `Alt+↓`를 294번 눌러야 끝이다. 묶어서 **개수만 줄었고 탐색 비용은 그대로**다.
+`bucketByKind`는 같은 kind leaf 6개 이상을 **하나의 평평한 그룹**으로 묶는다(`structure.ts`의 `bucketByKind` 주석에도 한계로 적어 두었다). "링크 294개" 버킷에 들어가면 `Alt+↓`를 294번 눌러야 끝이다. 묶어서 **개수만 줄었고 탐색 비용은 그대로**다.
 
 ### P1-D. 컨테이너 구조가 소실된다
 

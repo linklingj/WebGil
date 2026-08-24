@@ -66,7 +66,7 @@ export async function refineTree(
     return { status: "fallback", tree: root, reason: "재구성할 문서 노드가 없습니다." };
   }
   // 잘린 트리는 재구성하지 않는다 — 안 보낸 노드가 "계획에서 빠진 노드"로 오인돼 삭제된다.
-  // ponytail: 대형 문서(위키백과급)는 이 경계에서 그냥 원본을 쓴다. 섹션 단위 청킹은 계획 §4의 다음 단계.
+  // 대형 문서(위키백과급)는 이 경계에서 그냥 원본을 쓴다. 섹션 단위로 쪼개 보내는 건 계획 §4의 다음 단계.
   if (document.truncated) {
     return { status: "fallback", tree: root, reason: "문서가 한도보다 커서 재구성을 건너뜁니다." };
   }

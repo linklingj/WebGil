@@ -1,5 +1,16 @@
-// content script — 코어(ExtensionSource + 구조 추출 + 네비게이션 + 낭독)를 실제 페이지에 마운트하는 확장 셸.
-// 사이드패널/트랙패드 UI 전 단계에서는 Alt 조합 키로 커서 엔진과 TTS를 검증한다.
+// content script — 코어를 실제 페이지에 마운트하는 확장 셸.
+//
+// 이 파일이 페이지 쪽 **모든 상태의 주인**이다: 문서 트리, 커서, 낭독기, 액션 실행기.
+// 사이드패널은 다른 컨텍스트라 DOM 핸들을 받을 수 없어, 스냅샷을 받아 보여 주고 id로 명령만 보낸다.
+// 그래서 여기서 소유권을 넘기면 안 된다 — 트리와 커서가 두 곳에서 갈라지는 순간 서로 다른 화면이 된다.
+//
+// 파일 구성(위에서 아래로):
+//   1. 셸 조립 — 코어 엔진들을 페이지에 붙인다
+//   2. 설정 — Background에 물어서 받아 온다(콘텐츠 스크립트는 storage.local을 못 읽는다)
+//   3. 문서 트리 — 추출과 SPA 갱신
+//   4. 사이드패널 연결 — 스냅샷 전송과 명령 처리
+//   5. LLM 명령 — 자연어 → 검증된 계획 → 실행
+//   6. 입력 — 키보드·트랙패드
 import {
   ActionExecutor,
   CommandDispatcher,
@@ -18,7 +29,8 @@ import {
 } from "@webgil/core";
 import { ExtensionSource } from "./capture/extension-source.js";
 import { installCommandPalette } from "./llm/command-palette.js";
-import { isAltShiftKey } from "./navigation/shortcuts.js";
+import { isAltShiftKey, isEditableTarget, navigationCommandFor } from "./navigation/shortcuts.js";
+import { createTouchNavigationStatus } from "./navigation/touch-status.js";
 import {
   isPanelCommandMessage,
   PANEL_STATE,
@@ -36,11 +48,19 @@ import { ElevenLabsSpeechEngine } from "./tts/elevenlabs-speech-engine.js";
 import { WebSpeechEngine } from "./tts/web-speech-engine.js";
 import { isVoiceRate, speechRateFor, type VoiceRate } from "./tts/voice-rate.js";
 
+// --- 1. 셸 조립 ---------------------------------------------------------
+// ElevenLabs가 실패하면 브라우저 음성으로 내려간다(키 없음·오프라인·자동재생 차단 모두 같은 경로).
 const source = new ExtensionSource();
 const tts = new ElevenLabsSpeechEngine(new WebSpeechEngine());
 const narrator = new NarrationController(tts);
+// 트리를 처음 추출한 뒤에야 만들 수 있어 undefined로 시작한다(아래 scan 참고).
 let navigation: NavigationEngine | undefined;
-// 설정을 불러오기 전에도 기본값은 간결 낭독이다. 저장소는 Background만 읽는다.
+
+// --- 2. 설정 ------------------------------------------------------------
+// storage.local은 TRUSTED_CONTEXTS 전용이라 여기서 직접 못 읽는다. 부팅 때 Background에 한 번 묻고,
+// 이후 변경은 Background가 setVoiceRate·setNavigationGuidance 명령으로 밀어 준다.
+
+// 설정을 불러오기 전에도 기본값은 간결 낭독이다.
 let navigationGuidance: NavigationGuidance = "compact";
 
 void loadNavigationGuidance();
@@ -77,6 +97,9 @@ function navigationDetail(): "full" | undefined {
   return narrationDetailFor(navigationGuidance);
 }
 
+// --- 3. 문서 트리 --------------------------------------------------------
+
+/** 라이브 DOM에서 트리를 다시 뽑고 커서를 새 스냅샷에 맞춘다. 콘솔 요약은 개발용. */
 function scan() {
   const tree = extractTree(source.getDOM());
   const refresh = navigation?.replaceTree(tree);
@@ -122,7 +145,7 @@ source.onMutation(() => {
   publish();
 });
 
-// --- 08 사이드패널 연결 ---
+// --- 4. 사이드패널 연결 (docs/01_SYSTEM/08) -------------------------------
 // 패널은 다른 컨텍스트라 DocNode(핸들 포함)를 그대로 못 받는다. 스냅샷만 보내고 id만 돌려받는다.
 
 /** 패널이 그릴 현재 상태. 트리와 커서를 한 메시지에 묶어 뷰가 항상 일관된 쌍을 보게 한다. */
@@ -148,6 +171,12 @@ function publish(): void {
   }, 100);
 }
 
+/**
+ * 패널이 보낸 명령 하나를 처리하고, 갱신된 상태를 함께 돌려준다.
+ *
+ * 응답에 상태를 실어 보내는 이유: 패널이 "명령 → 응답 → 다시 상태 요청"으로 두 번 왕복하면
+ * 그 사이 화면이 옛 트리를 보여 준다. 한 번에 묶으면 화면이 어긋나는 순간이 없다.
+ */
 async function handlePanelCommand(command: PanelCommand): Promise<PanelReply> {
   let message: string | undefined;
   let awaitingConfirm = false;
@@ -241,9 +270,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-// 키보드 폴백(Shift/Control/Meta 없이 Alt만 사용):
-// Alt+방향키 = 같은 레벨 이동, Alt+Enter = 하위 진입, Alt+Backspace = 상위 복귀.
-// 일반 페이지 입력과 브라우저 단축키에 영향을 주지 않도록 조합키·비편집 영역에서만 처리한다.
+// --- 5. LLM 명령 ---------------------------------------------------------
+
+/**
+ * 페이지에서 쓰는 LanguageModel 구현. 실제 호출은 Background가 한다.
+ * API 키를 콘텐츠 스크립트로 내리지 않기 위한 구조다 — 페이지 스크립트와 같은 프로세스에 두지 않는다.
+ */
 class ExtensionLanguageModel implements LanguageModel {
   async complete(request: LLMRequest): Promise<unknown> {
     const response = await chrome.runtime.sendMessage<ChromeRuntimeMessageResponse>({
@@ -278,7 +310,7 @@ async function confirmPendingCommand() {
 }
 
 // 02-L LLM 트리 재구성. 비용·지연이 있는 원격 호출이라 자동이 아니라 사용자가 부를 때만 돈다.
-// ponytail: 다음 mutation의 scan()이 규칙 기반 트리로 되돌린다. 재구성 유지는 UX 결정이 선 뒤에.
+// 다음 mutation의 scan()이 규칙 기반 트리로 되돌려 놓는다. 재구성을 유지할지는 UX 결정이 선 뒤에.
 async function refineDocumentTree(): Promise<string> {
   const result = await refineTree(documentTree, new ExtensionLanguageModel());
   if (result.status === "refined") {
@@ -295,6 +327,7 @@ async function refineDocumentTree(): Promise<string> {
   return `문서 구조를 그대로 씁니다. ${result.reason}`;
 }
 
+// --- 6. 입력 -------------------------------------------------------------
 const commandPalette = installCommandPalette({
   run: runNaturalLanguageCommand,
   confirm: confirmPendingCommand,
@@ -332,13 +365,14 @@ document.addEventListener("keydown", (event) => {
       .catch((error) => console.warn("[WebGil] 트리 재구성 실패", error));
     return;
   }
-  const command = commandFor(event);
+  const command = navigationCommandFor(event);
   if (!command || isEditableTarget(event.target)) return;
 
   event.preventDefault();
   handleNavigation(command);
 });
 
+/** 커서를 옮기고 그 결과를 하이라이트·음성·패널로 흘려보낸다. 페이지·패널 입력이 모두 여기로 모인다. */
 function handleNavigation(command: NavigationCommand): void {
   const result = navigation!.handle(command);
   if (result.node) source.highlight(result.node.id);
@@ -376,6 +410,7 @@ function handleNavigation(command: NavigationCommand): void {
   }
 }
 
+/** 더 갈 곳이 없을 때의 안내. 아무 말도 안 하면 "키가 안 먹었나?"와 구분되지 않는다. */
 function boundaryMessage(command: NavigationCommand): string {
   switch (command) {
     case "next":
@@ -389,12 +424,10 @@ function boundaryMessage(command: NavigationCommand): string {
   }
 }
 
+/** 모드 전환은 화면과 소리 양쪽으로 알린다. 켠 걸 모르면 휠이 고장 난 것처럼 느껴진다. */
 function toggleTouchNavigation(): boolean {
   const enabled = touchNavigation.toggle();
-  touchNavigationStatus.setAttribute("data-enabled", String(enabled));
-  touchNavigationStatus.textContent = enabled
-    ? "WebGil 터치 네비게이션 켜짐 · Alt + Shift + T로 끄기"
-    : "WebGil 터치 네비게이션 꺼짐";
+  touchNavigationStatus.set(enabled);
   const current = navigation?.current;
   const message = enabled
     ? current
@@ -408,72 +441,6 @@ function toggleTouchNavigation(): boolean {
     )
     .catch((error) => console.warn("[WebGil] 모드 안내 낭독 실패", error));
   return enabled;
-}
-
-function createTouchNavigationStatus(): HTMLElement {
-  const status = document.createElement("div");
-  status.setAttribute("data-webgil-ui", "touch-navigation-status");
-  status.setAttribute("role", "status");
-  status.setAttribute("aria-live", "polite");
-  status.setAttribute("data-enabled", "false");
-  Object.assign(status.style, {
-    position: "fixed",
-    right: "16px",
-    bottom: "16px",
-    zIndex: "2147483647",
-    padding: "8px 12px",
-    borderRadius: "8px",
-    color: "#fff",
-    background: "#1f6feb",
-    font: "14px system-ui, sans-serif",
-    boxShadow: "0 2px 8px rgba(0, 0, 0, 0.25)",
-    display: "none",
-  } satisfies Partial<CSSStyleDeclaration>);
-  const style = document.createElement("style");
-  style.setAttribute("data-webgil-ui", "touch-navigation-status-style");
-  style.textContent = '[data-webgil-ui="touch-navigation-status"][data-enabled="true"] { display: block !important; }';
-  document.documentElement.append(style, status);
-  return status;
-}
-
-function commandFor(event: KeyboardEvent): NavigationCommand | null {
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
-  switch (event.key) {
-    case "ArrowDown":
-    case "ArrowRight":
-      return "next";
-    case "ArrowUp":
-    case "ArrowLeft":
-      return "previous";
-    case "Enter":
-      return "enter";
-    case "Backspace":
-      return "back";
-    default:
-      return null;
-  }
-}
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false;
-  // 버튼은 뺀다. 링크·버튼을 실행하면 포커스가 거기 남는데, 그때부터 Alt 탐색이 죽으면
-  // "한 번 누르면 더 못 움직이는" 상태가 된다. Alt+방향키는 버튼에서 하는 일이 없어 가로채도 안전하다.
-  // select·listbox 등 방향키가 값을 바꾸는 위젯은 그대로 둔다.
-  return (
-    target.closest(
-      [
-        "input",
-        "textarea",
-        "select",
-        '[contenteditable]:not([contenteditable="false"])',
-        '[role="textbox"]',
-        '[role="searchbox"]',
-        '[role="combobox"]',
-        '[role="spinbutton"]',
-        '[role="listbox"]',
-      ].join(", "),
-    ) !== null
-  );
 }
 
 // 개발/데모용: 콘솔에서 source·scan·navigation·narrator를 직접 시험.

@@ -34,7 +34,7 @@ export class ExtensionSource implements CaptureSource {
   }
 
   // 라이브 DOM을 훑어 접근성 노드 목록을 만든다. 계층 구성은 구조 추출 엔진(02)의 몫이라 평평한 목록을 낸다.
-  // ponytail: 규칙 기반 role/name 휴리스틱(코어 dom-semantics 공유). 전체 WAI-ARIA 이름 계산은 Phase 3.
+  // role/name은 규칙 기반 휴리스틱이다(코어 dom-semantics와 공유). 전체 WAI-ARIA 이름 계산은 Phase 3 과제.
   getAXTree(): AXNode[] {
     const out: AXNode[] = [];
     for (const el of this.doc.querySelectorAll<HTMLElement>(SIGNIFICANT_SELECTOR)) {
@@ -54,7 +54,8 @@ export class ExtensionSource implements CaptureSource {
     if (!el) throw new Error(`알 수 없는 노드: ${action.nodeId}`);
     switch (action.type) {
       case "click":
-        el.click(); // ponytail: 기본 .click(). 사이트가 무시하면 chrome.debugger Input.* 승격은 Phase 4에.
+        // 우선 기본 .click()으로 간다. 이걸 무시하는 사이트가 나오면 chrome.debugger Input.*로 올린다(Phase 4).
+        el.click();
         return;
       case "focus":
         el.focus();
@@ -123,7 +124,8 @@ export class ExtensionSource implements CaptureSource {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const observer = new this.win.MutationObserver(() => {
       clearTimeout(timer);
-      timer = setTimeout(cb, 200); // ponytail: 고정 200ms 디바운스. 증분 재추출은 Phase 3.
+      // 200ms 고정 디바운스. 바뀐 부분만 다시 뽑는 증분 재추출은 Phase 3.
+      timer = setTimeout(cb, 200);
     });
     observer.observe(this.doc.documentElement, {
       subtree: true,

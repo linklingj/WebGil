@@ -19,7 +19,7 @@ export const VOICE_RATE_LABEL: Record<VoiceRate, string> = {
 
 /**
  * 배속 값. 2배를 넘기면 ElevenLabs 음성이 알아듣기 어려워져 상한을 2로 둔다.
- * ponytail: 고정 4단계. 슬라이더로 세밀 조정은 실사용 피드백 뒤에.
+ * 4단계로 고정했다. 슬라이더로 세밀하게 맞추는 건 실사용 피드백을 본 뒤에.
  */
 const VOICE_RATE_VALUE: Record<VoiceRate, number> = {
   slow: 0.75,

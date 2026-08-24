@@ -246,7 +246,7 @@ function prune(n: DocNode): void {
 }
 
 // 본문 문단은 묶지 않는다 — 한 단계 아래로 숨기면 헤딩에서 내려와도 읽을 게 없는 지금 문제가 그대로다.
-// ponytail: 그 대가로 alt 이미지가 많은 페이지는 한 레벨이 길어진다. 버킷 페이징(개선안 A-3) 때 재검토.
+// 그 대가로 alt 이미지가 많은 페이지는 한 레벨이 길어진다. 버킷 페이징(개선안 A-3) 때 다시 본다.
 const BUCKET_KINDS = new Set<NodeKind>(["link", "button", "input"]);
 
 /** 같은 부모 안 같은 kind leaf가 GROUP_MIN 이상이면 하나의 그룹으로 묶어 현재 레벨을 짧게 유지. */
@@ -256,7 +256,7 @@ function bucketByKind(n: DocNode): void {
   const grouped = new Set(Object.keys(counts).filter((k) => counts[k] >= GROUP_MIN));
   if (grouped.size === 0) return;
 
-  // ponytail: 버킷은 평평. 한 버킷이 수백 개면 ~20개 페이지로 쪼개기는 Phase 3.
+  // 버킷 안은 평평하게 둔다. 한 버킷이 수백 개가 되면 ~20개씩 페이지로 쪼개는 건 Phase 3.
   const buckets: Record<string, DocNode> = {};
   const out: DocNode[] = [];
   for (const c of n.children) {

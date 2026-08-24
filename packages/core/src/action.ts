@@ -54,7 +54,7 @@ function defaultAction(node: DocNode): Action | null {
     case "button":
       return { type: "click", nodeId: node.id };
     case "input":
-      // ponytail: 체크박스·라디오도 포커스까지만. 포커스 뒤 Space는 브라우저가 처리한다.
+      // 체크박스·라디오도 포커스까지만 한다. 포커스 뒤의 Space는 브라우저가 알아서 처리한다.
       return { type: "focus", nodeId: node.id };
     default:
       return null;
