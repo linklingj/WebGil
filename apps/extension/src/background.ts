@@ -65,59 +65,54 @@ function showPanel(view: PanelView, windowId: number | undefined): void {
     .catch((error: unknown) => console.warn("[WebGil] 사이드패널을 열지 못했습니다", error));
 }
 
+/**
+ * 메시지 라우터. 여기 오는 요청은 전부 "콘텐츠 스크립트·패널이 직접 하면 안 되는 일"이다 —
+ * API 키를 읽는 일, 외부·로컬 서버를 부르는 일, TRUSTED_CONTEXTS 저장소를 읽는 일.
+ *
+ * 응답 규약은 하나뿐이다: `{ ok: true, value }` 또는 `{ ok: false, error }`.
+ * 오류를 던져서 넘기지 않는 이유는 메시지 경계를 넘으면 Error 객체가 사라지기 때문이다.
+ */
 chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   if (isCompleteMessage(message)) {
-    void complete(message.request)
-      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
-      .catch((error: unknown) => {
-        const text = error instanceof Error ? error.message : "LLM 요청에 실패했습니다.";
-        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
-      });
-    return true;
+    return reply(() => complete(message.request), "LLM 요청에 실패했습니다.", sendResponse);
   }
-
   if (isElevenLabsSpeechMessage(message)) {
-    void synthesizeWithElevenLabs(message.text)
-      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
-      .catch((error: unknown) => {
-        const text = error instanceof Error ? error.message : "ElevenLabs 음성 요청에 실패했습니다.";
-        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
-      });
-    return true;
+    return reply(() => synthesizeWithElevenLabs(message.text), "ElevenLabs 음성 요청에 실패했습니다.", sendResponse);
   }
-
   if (isOllamaModelsMessage(message)) {
-    // 로컬 Ollama 호출도 Background가 맡는다 — 페이지 스크립트에 로컬 서버를 열어 주지 않는다.
-    void listOllamaModels()
-      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
-      .catch((error: unknown) => {
-        const text = error instanceof Error ? error.message : "Ollama에 연결하지 못했습니다.";
-        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
-      });
-    return true;
+    // 로컬 서버라도 페이지 스크립트에 열어 주지 않는다. 통로는 여기 하나뿐이다.
+    return reply(listOllamaModels, "Ollama에 연결하지 못했습니다.", sendResponse);
   }
-
   if (isVoiceRateGetMessage(message)) {
-    void readVoiceRate()
-      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
-      .catch((error: unknown) => {
-        const text = error instanceof Error ? error.message : "낭독 속도 설정을 읽지 못했습니다.";
-        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
-      });
-    return true;
+    return reply(readVoiceRate, "낭독 속도 설정을 읽지 못했습니다.", sendResponse);
   }
-
   if (isNavigationGuidanceGetMessage(message)) {
-    void readNavigationGuidance()
-      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
-      .catch((error: unknown) => {
-        const text = error instanceof Error ? error.message : "탐색 안내 설정을 읽지 못했습니다.";
-        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
-      });
-    return true;
+    return reply(readNavigationGuidance, "탐색 안내 설정을 읽지 못했습니다.", sendResponse);
   }
 });
 
+/**
+ * 비동기 작업 하나를 응답 규약에 맞춰 돌려준다.
+ *
+ * `true`를 반환하는 건 Chrome에 "응답을 나중에 보내겠다"고 알리는 신호다.
+ * 빼먹으면 리스너가 끝나는 순간 메시지 채널이 닫혀, 나중에 부르는 sendResponse가 조용히 사라진다.
+ */
+function reply(
+  work: () => Promise<unknown>,
+  fallbackError: string,
+  sendResponse: (response: unknown) => void,
+): true {
+  void work()
+    .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
+    .catch((error: unknown) => {
+      // 사용자에게 보일 문장이다. 제공자가 준 설명이 있으면 그걸 쓰고, 없을 때만 기본 문구로 내린다.
+      const text = error instanceof Error ? error.message : fallbackError;
+      sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
+    });
+  return true;
+}
+
+/** 저장된 제공자 설정으로 LLM을 부른다. 키는 이 함수 밖으로 나가지 않는다. */
 async function complete(request: LLMRequest): Promise<unknown> {
   const stored = await chrome.storage.local.get(LLM_STORAGE_KEY);
   const config = stored[LLM_STORAGE_KEY];
@@ -127,6 +122,10 @@ async function complete(request: LLMRequest): Promise<unknown> {
   return createProviderLanguageModel(config).complete(request);
 }
 
+/**
+ * 음성을 합성해 data: URL로 돌려준다. 오디오 바이트를 그대로 메시지에 실을 수 없어 base64로 감싼다
+ * (구조화 복제로 ArrayBuffer를 보낼 수는 있지만, 재생 쪽에서 URL 하나만 받는 편이 단순하다).
+ */
 async function synthesizeWithElevenLabs(text: string): Promise<string> {
   const stored = await chrome.storage.local.get(TTS_STORAGE_KEY);
   const config = stored[TTS_STORAGE_KEY];
@@ -255,6 +254,7 @@ async function responseError(response: Response): Promise<string> {
   }
 }
 
+/** btoa는 문자열만 받는다. 인자를 한 번에 펼치면 큰 오디오에서 스택이 넘치므로 32KB씩 끊는다. */
 function toBase64(bytes: Uint8Array): string {
   const chunkSize = 0x8000;
   let binary = "";

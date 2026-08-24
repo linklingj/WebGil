@@ -12,9 +12,11 @@ interface ActiveSpeech {
  */
 export class WebSpeechEngine implements TTSEngine {
   private active?: ActiveSpeech;
+  /** 늦게 도착한 응답이 새 낭독을 덮어쓰지 못하게 하는 요청 번호. */
   private requestId = 0;
   private waitedForInitialVoices = false;
 
+  // 생성자 인자는 전부 테스트를 위한 이음매다. 실제 실행에서는 기본값만 쓴다.
   constructor(
     private readonly synthesis: SpeechSynthesis = window.speechSynthesis,
     private readonly createUtterance: (text: string) => SpeechSynthesisUtterance =
@@ -82,6 +84,7 @@ export class WebSpeechEngine implements TTSEngine {
       };
       utterance.onend = settle;
       utterance.onerror = (event) => {
+        // 취소·선점은 오류가 아니라 정상 흐름이다. 새 낭독이 이전 것을 끊었을 뿐이다.
         if (event.error === "canceled" || event.error === "interrupted") settle();
         else fail(new Error(`음성 낭독 실패: ${event.error}`));
       };
@@ -119,6 +122,10 @@ export class WebSpeechEngine implements TTSEngine {
   }
 }
 
+/**
+ * 한국어 음성 중 로컬(온디바이스)을 먼저 고른다. 원격 음성은 네트워크를 타 지연이 크고,
+ * 읽을 텍스트가 OS 제공자의 서버로 나간다 — 탐색용 낭독은 지연이 곧 사용성이다.
+ */
 function preferredKoreanVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   const korean = voices.filter((voice) => voice.lang.toLowerCase().startsWith("ko"));
   return korean.find((voice) => voice.localService) ?? korean[0];

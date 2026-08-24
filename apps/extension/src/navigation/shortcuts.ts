@@ -1,3 +1,5 @@
+import type { NavigationCommand } from "@webgil/core";
+
 /**
  * Alt(Option) + Shift + 문자 단축키 판정.
  *
@@ -15,6 +17,57 @@ export function isAltShiftKey(event: KeyboardEvent, code: string): boolean {
 /** Alt(Option) + 문자 단축키 판정. 이유는 위와 같다 — 문자는 `code`(물리 키)로만 본다. */
 export function isAltKey(event: KeyboardEvent, code: string): boolean {
   return event.altKey && !event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === code;
+}
+
+/**
+ * 페이지에서 누른 키 → 탐색 명령. 화면이 없는 목록 은유라 아래=다음, 오른쪽=다음이다
+ * (패널 트리는 형제가 좌우로 보여 반대로 맞춘다 — 같은 동작을 다르게 매핑한 건 의도다).
+ *
+ * Alt만 쓰고 Shift/Ctrl/Meta가 섞이면 무시한다. 브라우저·사이트 단축키와 겹치지 않게 하려는 것.
+ * 방향키·Enter·Backspace는 Option을 눌러도 `key`가 그대로라 문자 단축키와 달리 `key`로 판정해도 된다.
+ */
+export function navigationCommandFor(event: KeyboardEvent): NavigationCommand | null {
+  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return null;
+  switch (event.key) {
+    case "ArrowDown":
+    case "ArrowRight":
+      return "next";
+    case "ArrowUp":
+    case "ArrowLeft":
+      return "previous";
+    case "Enter":
+      return "enter";
+    case "Backspace":
+      return "back";
+    default:
+      return null;
+  }
+}
+
+/**
+ * 지금 키 입력을 페이지에 양보해야 하는 자리인가.
+ *
+ * 글을 쓰는 칸과 방향키로 값이 바뀌는 위젯(select·listbox 등)에서는 우리가 가로채면 안 된다.
+ * **버튼·링크는 일부러 뺐다.** 링크나 버튼을 실행하면 포커스가 거기 남는데, 그 상태에서 탐색이 죽으면
+ * "한 번 누르면 더 못 움직이는" 상태가 된다. Alt+방향키는 버튼에서 하는 일이 없어 가로채도 안전하다.
+ */
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  return (
+    target.closest(
+      [
+        "input",
+        "textarea",
+        "select",
+        '[contenteditable]:not([contenteditable="false"])',
+        '[role="textbox"]',
+        '[role="searchbox"]',
+        '[role="combobox"]',
+        '[role="spinbutton"]',
+        '[role="listbox"]',
+      ].join(", "),
+    ) !== null
+  );
 }
 
 /**
