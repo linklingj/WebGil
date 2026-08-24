@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>WebGil</title>
+    <link rel="stylesheet" href="panel.css" />
+  </head>
+  <body>
+    <header id="searchBar" data-mode="search">
+      <div class="search-row">
+        <span class="icon" aria-hidden="true">🔍</span>
+        <input
+          id="search"
+          type="text"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="searchResults"
+          aria-autocomplete="list"
+          autocomplete="off"
+          placeholder="검색 · ?로 시작하면 명령"
+          aria-label="문서 검색 또는 자연어 명령"
+        />
+      </div>
+      <ul id="searchResults" role="listbox" aria-label="검색 결과" hidden></ul>
+    </header>
+
+    <main
+      id="viewport"
+      class="viewport"
+      role="tree"
+      aria-label="문서 구조 트리"
+      tabindex="0"
+      data-following="true"
+    >
+      <div class="camera">
+        <svg class="edges" aria-hidden="true" focusable="false" overflow="visible"></svg>
+        <div class="nodes"></div>
+      </div>
+      <p id="empty" class="empty">페이지를 읽는 중입니다…</p>
+      <button id="recenter" type="button" class="recenter">현재 위치로</button>
+    </main>
+
+    <footer>
+      <p id="status" role="status" aria-live="polite">준비 중</p>
+      <div class="actions">
+        <button id="helpButton" type="button">? 도움말</button>
+        <button id="settingsButton" type="button">⚙ 설정</button>
+      </div>
+    </footer>
+
+    <dialog id="helpDialog" aria-labelledby="helpTitle">
+      <form method="dialog" class="dialog-head">
+        <h2 id="helpTitle">조작 방법</h2>
+        <button value="close" aria-label="도움말 닫기">✕</button>
+      </form>
+      <div class="help-body"></div>
+    </dialog>
+
+    <dialog id="settingsDialog" aria-labelledby="settingsTitle">
+      <form method="dialog" class="dialog-head">
+        <h2 id="settingsTitle">설정</h2>
+        <button value="close" aria-label="설정 닫기">✕</button>
+      </form>
+      <div class="dialog-body">
+        <form id="settings">
+          <h3>언어 모델</h3>
+          <label for="provider">제공자</label>
+          <select id="provider" name="provider">
+            <option value="openai">OpenAI (ChatGPT API)</option>
+            <option value="gemini">Google Gemini API</option>
+            <option value="anthropic">Anthropic Claude API</option>
+            <option value="ollama">Ollama (내 컴퓨터에서 실행)</option>
+          </select>
+
+          <div id="remoteFields">
+            <label for="model">모델 ID</label>
+            <input id="model" name="model" placeholder="사용할 모델 ID" autocomplete="off" />
+            <label for="apiKey">API 키</label>
+            <input id="apiKey" name="apiKey" type="password" placeholder="이 기기에만 저장" autocomplete="off" />
+          </div>
+
+          <div id="ollamaFields" hidden>
+            <label for="ollamaModel">모델</label>
+            <select id="ollamaModel" name="ollamaModel"></select>
+            <button id="ollamaRefresh" type="button">설치된 모델 다시 불러오기</button>
+            <p class="setting-help">
+              내 컴퓨터의 Ollama(localhost:11434)에 설치된 모델을 불러옵니다. API 키가 필요 없고
+              페이지 내용이 기기 밖으로 나가지 않습니다.
+            </p>
+          </div>
+
+          <button type="submit">저장</button>
+          <p id="llmStatus" class="form-status" role="status"></p>
+        </form>
+
+        <form id="ttsSettings">
+          <h3>ElevenLabs 음성</h3>
+          <label for="ttsApiKey">ElevenLabs API 키</label>
+          <input id="ttsApiKey" name="ttsApiKey" type="password" required placeholder="이 기기에만 저장" autocomplete="off" />
+          <label for="ttsVoiceId">음성 ID</label>
+          <input id="ttsVoiceId" name="ttsVoiceId" required placeholder="ElevenLabs Voice ID" autocomplete="off" />
+          <label for="ttsModel">음성 모델</label>
+          <select id="ttsModel" name="ttsModel">
+            <option value="eleven_multilingual_v2">Eleven Multilingual v2 (고품질)</option>
+          </select>
+          <button type="submit">ElevenLabs 음성 저장</button>
+          <p id="ttsStatus" class="form-status" role="status"></p>
+        </form>
+
+        <form id="voiceRateSettings">
+          <h3>낭독 속도</h3>
+          <label for="voiceRate">속도</label>
+          <select id="voiceRate" name="voiceRate">
+            <option value="slow">느림</option>
+            <option value="normal" selected>일반</option>
+            <option value="fast">빠름</option>
+            <option value="veryFast">매우 빠름</option>
+          </select>
+          <p class="setting-help">기본값은 일반입니다. 페이지 낭독과 패널 안내에 함께 적용됩니다.</p>
+          <button type="submit">낭독 속도 저장</button>
+          <p id="voiceRateStatus" class="form-status" role="status"></p>
+        </form>
+
+        <form id="narrationSettings">
+          <h3>탐색 안내</h3>
+          <label class="toggle" for="navigationGuidance">
+            <input id="navigationGuidance" name="navigationGuidance" type="checkbox" />
+            <span>탐색 안내: 레벨·현재 항목·전체 항목 수 함께 읽기</span>
+          </label>
+          <p class="setting-help">기본값은 끔입니다. 켜면 항목을 이동할 때 탐색 위치를 함께 안내합니다.</p>
+          <button type="submit">탐색 안내 저장</button>
+          <p id="narrationStatus" class="form-status" role="status"></p>
+        </form>
+
+        <p class="note">
+          API 키는 확장 프로그램의 신뢰된 저장소에만 보관되고 Background에서만 사용됩니다.
+          ElevenLabs 음성을 사용하면 읽을 텍스트가 ElevenLabs에 전송됩니다.
+          키·Voice ID를 저장하지 않았거나 요청이 실패하면 브라우저 기본 음성으로 자동 전환됩니다.
+        </p>
+      </div>
+    </dialog>
+
+    <script src="panel.js"></script>
+  </body>
+</html>
