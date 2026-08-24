@@ -111,7 +111,7 @@
 
 | 항목 | 저장 키 | 비고 |
 |---|---|---|
-| LLM 제공자 / 모델 / API 키 | `webgil.llm.provider` | popup과 동일 스키마 |
+| LLM 제공자 / 모델 / API 키 | `webgil.llm.provider` | popup과 동일 스키마. Ollama는 키 칸 대신 설치된 모델 목록 |
 | ElevenLabs API 키 / Voice ID / 모델 | `webgil.tts.elevenlabs` | popup과 동일 스키마 |
 | 낭독 속도 | `webgil.tts.rate` | 느림·일반·빠름·매우 빠름 (기본 일반) |
 | 탐색 안내 상세도 | `webgil.navigation.guidance` | 레벨·순서 함께 읽기 |

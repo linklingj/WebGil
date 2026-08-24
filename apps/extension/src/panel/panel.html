@@ -69,11 +69,26 @@
             <option value="openai">OpenAI (ChatGPT API)</option>
             <option value="gemini">Google Gemini API</option>
             <option value="anthropic">Anthropic Claude API</option>
+            <option value="ollama">Ollama (내 컴퓨터에서 실행)</option>
           </select>
-          <label for="model">모델 ID</label>
-          <input id="model" name="model" required placeholder="사용할 모델 ID" autocomplete="off" />
-          <label for="apiKey">API 키</label>
-          <input id="apiKey" name="apiKey" type="password" required placeholder="이 기기에만 저장" autocomplete="off" />
+
+          <div id="remoteFields">
+            <label for="model">모델 ID</label>
+            <input id="model" name="model" placeholder="사용할 모델 ID" autocomplete="off" />
+            <label for="apiKey">API 키</label>
+            <input id="apiKey" name="apiKey" type="password" placeholder="이 기기에만 저장" autocomplete="off" />
+          </div>
+
+          <div id="ollamaFields" hidden>
+            <label for="ollamaModel">모델</label>
+            <select id="ollamaModel" name="ollamaModel"></select>
+            <button id="ollamaRefresh" type="button">설치된 모델 다시 불러오기</button>
+            <p class="setting-help">
+              내 컴퓨터의 Ollama(localhost:11434)에 설치된 모델을 불러옵니다. API 키가 필요 없고
+              페이지 내용이 기기 밖으로 나가지 않습니다.
+            </p>
+          </div>
+
           <button type="submit">저장</button>
           <p id="llmStatus" class="form-status" role="status"></p>
         </form>

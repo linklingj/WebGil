@@ -1,5 +1,6 @@
 interface WebGilStoredProviderConfig {
-  provider: "openai" | "gemini" | "anthropic";
+  /** ollama는 로컬 서버라 apiKey가 빈 문자열이다. */
+  provider: "openai" | "gemini" | "anthropic" | "ollama";
   apiKey: string;
   model: string;
 }

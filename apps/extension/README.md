@@ -73,6 +73,17 @@ __webgilPanel.state           // 패널이 받은 스냅샷 (패널 우클릭 �
 
 `build` 다시 → `chrome://extensions`에서 새로고침 → **대상 페이지도 새로고침**.
 
+### Ollama로 쓰기 (API 키 없이)
+
+1. [Ollama](https://ollama.com)를 설치하고 모델을 받는다: `ollama pull llama3.2`
+2. 서버를 켠다: `ollama serve` (앱을 실행 중이면 이미 켜져 있다)
+3. 패널 설정 → 제공자 **Ollama** → 설치된 모델 목록에서 고르고 저장
+
+- 주소는 `http://localhost:11434` 고정이다(확장 권한이 manifest에 정적으로 박힌다).
+- 목록이 비거나 연결 실패로 뜨면 `ollama serve` 실행 여부를 먼저 본다.
+- 그래도 실패하면 확장 오리진을 허용한다: `OLLAMA_ORIGINS='chrome-extension://*' ollama serve`
+- 페이지 내용이 기기 밖으로 나가지 않는다 — 민감한 페이지에서 쓰는 경로다.
+
 ### 문제 해결
 
 - **아무 로그도 안 나옴 / 패널이 "사용할 수 없는 페이지"**: `chrome://`, 크롬 웹스토어 페이지에는 content script가 주입되지 않는다. 일반 웹페이지에서 확인.

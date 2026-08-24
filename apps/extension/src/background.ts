@@ -1,5 +1,6 @@
 import {
   createProviderLanguageModel,
+  listOllamaModels,
   type LLMRequest,
   type ProviderConfig,
 } from "@webgil/core";
@@ -80,6 +81,17 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
       .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
       .catch((error: unknown) => {
         const text = error instanceof Error ? error.message : "ElevenLabs 음성 요청에 실패했습니다.";
+        sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
+      });
+    return true;
+  }
+
+  if (isOllamaModelsMessage(message)) {
+    // 로컬 Ollama 호출도 Background가 맡는다 — 페이지 스크립트에 로컬 서버를 열어 주지 않는다.
+    void listOllamaModels()
+      .then((value) => sendResponse({ ok: true, value } satisfies ChromeRuntimeMessageResponse))
+      .catch((error: unknown) => {
+        const text = error instanceof Error ? error.message : "Ollama에 연결하지 못했습니다.";
         sendResponse({ ok: false, error: text } satisfies ChromeRuntimeMessageResponse);
       });
     return true;
@@ -211,9 +223,14 @@ function isVoiceRateGetMessage(value: unknown): value is { type: "webgil.voice-r
   return isRecord(value) && value.type === "webgil.voice-rate.get";
 }
 
+function isOllamaModelsMessage(value: unknown): value is { type: "webgil.ollama.models" } {
+  return isRecord(value) && value.type === "webgil.ollama.models";
+}
+
 function isProviderConfig(value: unknown): value is ProviderConfig {
   return isRecord(value)
-    && (value.provider === "openai" || value.provider === "gemini" || value.provider === "anthropic")
+    && (value.provider === "openai" || value.provider === "gemini" || value.provider === "anthropic"
+      || value.provider === "ollama")
     && typeof value.apiKey === "string"
     && typeof value.model === "string";
 }

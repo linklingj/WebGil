@@ -20,7 +20,11 @@
 
 - 트리를 **텍스트 접근성 스냅샷**으로 LLM에 준다(vision 불필요·저토큰; Playwright MCP의 `@ref` 패턴과 동일).
 - LLM은 자유 클릭이 아니라 **트리 노드 `id`를 지목**하고, 실행은 결정론적 액션(07)이 맡는다(안전·재현성).
-- 로컬(Ollama)·API(OpenAI/Anthropic) 모두 OpenAI 호환이라 코드 수정 없이 전환된다.
+- 로컬(Ollama)·API(OpenAI/Gemini/Claude)를 설정에서 고른다. 어댑터는 제공자마다 하나씩 두고 `LanguageModel` 계약 하나로 맞춘다.
+  - Ollama는 네이티브 `/api/chat`(`format: "json"`, `stream: false`)을 쓴다. OpenAI 호환 경로보다 구버전 지원이 넓고 응답이 단순하다.
+  - **키가 없다.** 저장 스키마는 그대로 두고 `apiKey`를 빈 문자열로 저장한다 → 검증·저장 경로를 제공자별로 갈라놓지 않는다.
+  - 모델 이름은 사용자가 무엇을 받아 뒀는지에 달렸다. 그래서 설정 화면이 `/api/tags`로 **설치된 목록을 받아 고르게** 한다(직접 입력 X — 오타 한 글자에 실패하고, 소리로는 원인을 알기 어렵다).
+  - 주소는 `http://localhost:11434` 고정이다. 확장의 host 권한은 manifest에 정적으로 박히므로 런타임에 다른 포트를 열 수 없다.
 
 ## 가드레일 (plan.md §6 Phase 4)
 

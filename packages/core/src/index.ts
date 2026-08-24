@@ -58,6 +58,9 @@ export {
   AnthropicMessagesModel,
   createProviderLanguageModel,
   GeminiOpenAICompatibleModel,
+  listOllamaModels,
+  OLLAMA_HOST,
+  OllamaChatModel,
   OpenAIResponsesModel,
 } from "./llm-provider.js";
 export type { FetchFunction, LLMProvider, ProviderConfig } from "./llm-provider.js";

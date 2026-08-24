@@ -19,6 +19,7 @@ export class SettingsDialog {
   private readonly ttsForm: HTMLFormElement;
   private readonly narrationForm: HTMLFormElement;
   private readonly voiceRateForm: HTMLFormElement;
+  private readonly providerField: HTMLSelectElement;
   private readonly voice: DialogVoice;
 
   constructor(private readonly dialog: HTMLDialogElement) {
@@ -26,15 +27,22 @@ export class SettingsDialog {
     this.ttsForm = dialog.querySelector<HTMLFormElement>("#ttsSettings")!;
     this.narrationForm = dialog.querySelector<HTMLFormElement>("#narrationSettings")!;
     this.voiceRateForm = dialog.querySelector<HTMLFormElement>("#voiceRateSettings")!;
+    this.providerField = dialog.querySelector<HTMLSelectElement>("#provider")!;
     this.voice = attachDialogVoice(dialog, {
       label: "설정",
-      stops: () => [...dialog.querySelectorAll<HTMLElement>("select, input, button")],
+      stops: () =>
+        [...dialog.querySelectorAll<HTMLElement>("select, input, button")]
+          .filter((element) => !element.hidden && !element.closest("[hidden]")),
       describe: (element) => describeFormControl(dialog, element),
     });
 
     this.form.addEventListener("submit", (event) => {
       event.preventDefault();
       void this.save();
+    });
+    this.providerField.addEventListener("change", () => void this.applyProvider());
+    this.field<HTMLButtonElement>("#ollamaRefresh").addEventListener("click", () => {
+      void this.loadOllamaModels({ announce: true });
     });
     this.ttsForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -77,10 +85,14 @@ export class SettingsDialog {
     ]);
     const config = stored[LLM_STORAGE_KEY];
     if (isConfig(config)) {
-      this.field<HTMLSelectElement>("#provider").value = config.provider;
-      this.field<HTMLInputElement>("#model").value = config.model;
-      this.field<HTMLInputElement>("#apiKey").value = config.apiKey;
+      this.providerField.value = config.provider;
+      if (config.provider === "ollama") this.setOllamaOptions([config.model], config.model);
+      else {
+        this.field<HTMLInputElement>("#model").value = config.model;
+        this.field<HTMLInputElement>("#apiKey").value = config.apiKey;
+      }
     }
+    await this.applyProvider();
 
     const ttsConfig = stored[TTS_STORAGE_KEY];
     if (isTTSConfig(ttsConfig)) {
@@ -99,15 +111,72 @@ export class SettingsDialog {
     setPanelVoiceRate(current);
   }
 
+  /** 제공자에 따라 필요한 칸만 보여 준다. Ollama는 키가 없고 모델을 목록에서 고른다. */
+  private async applyProvider(): Promise<void> {
+    const ollama = this.providerField.value === "ollama";
+    this.field<HTMLElement>("#remoteFields").hidden = ollama;
+    this.field<HTMLElement>("#ollamaFields").hidden = !ollama;
+    if (ollama && this.field<HTMLSelectElement>("#ollamaModel").options.length <= 1) {
+      await this.loadOllamaModels();
+    }
+  }
+
+  /** 설치된 로컬 모델을 Background를 통해 받아 온다(로컬 서버 호출도 신뢰된 컨텍스트에서만). */
+  private async loadOllamaModels(options: { announce?: boolean } = {}): Promise<void> {
+    const status = this.field<HTMLElement>("#llmStatus");
+    const selected = this.field<HTMLSelectElement>("#ollamaModel").value;
+    try {
+      const response = await chrome.runtime.sendMessage<ChromeRuntimeMessageResponse>({
+        type: "webgil.ollama.models",
+      });
+      if (!response.ok) throw new Error(response.error ?? "Ollama에 연결하지 못했습니다.");
+      const models = Array.isArray(response.value)
+        ? response.value.filter((name): name is string => typeof name === "string")
+        : [];
+      this.setOllamaOptions(models, selected);
+      if (models.length === 0) {
+        this.report(status, "설치된 Ollama 모델이 없습니다. 터미널에서 ollama pull 로 모델을 받아 주세요.");
+        return;
+      }
+      if (options.announce) this.report(status, `Ollama 모델 ${models.length}개를 불러왔습니다.`);
+    } catch {
+      this.setOllamaOptions([], selected);
+      // 로컬 서버가 꺼져 있는 게 가장 흔한 원인이라, 다음에 뭘 하면 되는지까지 말한다.
+      this.report(status, "Ollama에 연결하지 못했습니다. ollama serve 가 실행 중인지 확인해 주세요.");
+    }
+  }
+
+  private setOllamaOptions(models: string[], selected: string): void {
+    const select = this.field<HTMLSelectElement>("#ollamaModel");
+    select.replaceChildren();
+    const names = models.length ? models : selected ? [selected] : [];
+    for (const name of names) {
+      const option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      select.append(option);
+    }
+    if (names.includes(selected)) select.value = selected;
+  }
+
   private async save(): Promise<void> {
     const status = this.field<HTMLElement>("#llmStatus");
+    const provider = this.providerField.value as WebGilStoredProviderConfig["provider"];
+    const ollama = provider === "ollama";
     const config: WebGilStoredProviderConfig = {
-      provider: this.field<HTMLSelectElement>("#provider").value as WebGilStoredProviderConfig["provider"],
-      model: this.field<HTMLInputElement>("#model").value.trim(),
-      apiKey: this.field<HTMLInputElement>("#apiKey").value.trim(),
+      provider,
+      model: ollama
+        ? this.field<HTMLSelectElement>("#ollamaModel").value
+        : this.field<HTMLInputElement>("#model").value.trim(),
+      // 로컬 서버는 키가 없다. 빈 문자열로 저장해 스키마를 그대로 유지한다.
+      apiKey: ollama ? "" : this.field<HTMLInputElement>("#apiKey").value.trim(),
     };
-    if (!config.model || !config.apiKey) {
-      this.report(status, "모델 ID와 API 키를 입력해 주세요.");
+    if (!config.model) {
+      this.report(status, ollama ? "사용할 Ollama 모델을 골라 주세요." : "모델 ID를 입력해 주세요.");
+      return;
+    }
+    if (!ollama && !config.apiKey) {
+      this.report(status, "API 키를 입력해 주세요.");
       return;
     }
     await chrome.storage.local.set({ [LLM_STORAGE_KEY]: config });
@@ -164,7 +233,7 @@ export class SettingsDialog {
 
 function isConfig(value: unknown): value is WebGilStoredProviderConfig {
   return typeof value === "object" && value !== null
-    && ["openai", "gemini", "anthropic"].includes((value as { provider?: string }).provider ?? "")
+    && ["openai", "gemini", "anthropic", "ollama"].includes((value as { provider?: string }).provider ?? "")
     && typeof (value as { apiKey?: unknown }).apiKey === "string"
     && typeof (value as { model?: unknown }).model === "string";
 }
